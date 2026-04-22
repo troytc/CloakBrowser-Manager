@@ -118,64 +118,71 @@ Explicit exclusions. These are documented to prevent scope creep, not because th
 
 ## Traceability
 
-Populated by the roadmap agent. Empty at requirements-definition time.
+Populated by the roadmap agent.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TMPL-01 | TBD | Pending |
-| TMPL-02 | TBD | Pending |
-| TMPL-03 | TBD | Pending |
-| TMPL-04 | TBD | Pending |
-| TMPL-05 | TBD | Pending |
-| SESS-01 | TBD | Pending |
-| SESS-02 | TBD | Pending |
-| SESS-03 | TBD | Pending |
-| SESS-04 | TBD | Pending |
-| SESS-05 | TBD | Pending |
-| SESS-06 | TBD | Pending |
-| SESS-07 | TBD | Pending |
-| SESS-08 | TBD | Pending |
-| SESS-09 | TBD | Pending |
-| SESS-10 | TBD | Pending |
-| SESS-11 | TBD | Pending |
-| SESS-12 | TBD | Pending |
-| SESS-13 | TBD | Pending |
-| SESS-14 | TBD | Pending |
-| PROF-01 | TBD | Pending |
-| PROF-02 | TBD | Pending |
-| PROF-03 | TBD | Pending |
-| PROF-04 | TBD | Pending |
-| VIEW-01 | TBD | Pending |
-| VIEW-02 | TBD | Pending |
-| VIEW-03 | TBD | Pending |
-| VIEW-04 | TBD | Pending |
-| VIEW-05 | TBD | Pending |
-| VIEW-06 | TBD | Pending |
-| VIEW-07 | TBD | Pending |
-| VIEW-08 | TBD | Pending |
-| VIEW-09 | TBD | Pending |
-| SEC-01 | TBD | Pending |
-| SEC-02 | TBD | Pending |
-| SEC-03 | TBD | Pending |
-| SEC-04 | TBD | Pending |
-| SEC-05 | TBD | Pending |
-| SEC-06 | TBD | Pending |
-| SEC-07 | TBD | Pending |
-| ADM-01 | TBD | Pending |
-| ADM-02 | TBD | Pending |
-| ADM-03 | TBD | Pending |
-| ADM-04 | TBD | Pending |
-| OPS-01 | TBD | Pending |
-| OPS-02 | TBD | Pending |
-| OPS-03 | TBD | Pending |
-| OPS-04 | TBD | Pending |
-| OPS-05 | TBD | Pending |
+| TMPL-01 | Phase 1 | Pending |
+| TMPL-02 | Phase 1 | Pending |
+| TMPL-03 | Phase 1 | Pending |
+| TMPL-04 | Phase 1 | Pending |
+| TMPL-05 | Phase 1 | Pending |
+| SESS-01 | Phase 2 | Pending |
+| SESS-02 | Phase 2 | Pending |
+| SESS-03 | Phase 2 | Pending |
+| SESS-04 | Phase 2 | Pending |
+| SESS-05 | Phase 2 | Pending |
+| SESS-06 | Phase 2 | Pending |
+| SESS-07 | Phase 2 | Pending |
+| SESS-08 | Phase 2 | Pending |
+| SESS-09 | Phase 2 | Pending |
+| SESS-10 | Phase 2 | Pending |
+| SESS-11 | Phase 2 | Pending |
+| SESS-12 | Phase 2 | Pending |
+| SESS-13 | Phase 2 | Pending |
+| SESS-14 | Phase 2 | Pending |
+| PROF-01 | Phase 2 | Pending |
+| PROF-02 | Phase 2 | Pending |
+| PROF-03 | Phase 2 | Pending |
+| PROF-04 | Phase 2 | Pending |
+| VIEW-01 | Phase 3 | Pending |
+| VIEW-02 | Phase 3 | Pending |
+| VIEW-03 | Phase 3 | Pending |
+| VIEW-04 | Phase 3 | Pending |
+| VIEW-05 | Phase 3 | Pending |
+| VIEW-06 | Phase 3 | Pending |
+| VIEW-07 | Phase 3 | Pending |
+| VIEW-08 | Phase 3 | Pending |
+| VIEW-09 | Phase 3 | Pending |
+| SEC-01 | Phase 2 | Pending |
+| SEC-02 | Phase 3 | Pending |
+| SEC-03 | Phase 3 | Pending |
+| SEC-04 | Phase 3 | Pending |
+| SEC-05 | Phase 1 | Pending |
+| SEC-06 | Phase 1 | Pending |
+| SEC-07 | Phase 3 | Pending |
+| ADM-01 | Phase 4 | Pending |
+| ADM-02 | Phase 4 | Pending |
+| ADM-03 | Phase 4 | Pending |
+| ADM-04 | Phase 4 | Pending |
+| OPS-01 | Phase 4 | Pending |
+| OPS-02 | Phase 4 | Pending |
+| OPS-03 | Phase 1 | Pending |
+| OPS-04 | Phase 1 | Pending |
+| OPS-05 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 48 total
-- Mapped to phases: 0 (to be populated by roadmap agent)
-- Unmapped: 48 ⚠️ — expected; roadmap agent fills this
+- Mapped to phases: 48
+- Unmapped: 0
+
+| Phase | Count | Requirements |
+|-------|-------|-------------|
+| Phase 1 | 10 | TMPL-01..05, SEC-05, SEC-06, OPS-03, OPS-04, OPS-05 |
+| Phase 2 | 19 | SESS-01..14, PROF-01..04, SEC-01 |
+| Phase 3 | 13 | VIEW-01..09, SEC-02, SEC-03, SEC-04, SEC-07 |
+| Phase 4 | 6 | ADM-01..04, OPS-01, OPS-02 |
 
 ---
 *Requirements defined: 2026-04-22*
-*Last updated: 2026-04-22 after initial definition*
+*Last updated: 2026-04-22 — traceability filled by roadmap agent*
