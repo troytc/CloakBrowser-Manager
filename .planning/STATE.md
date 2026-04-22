@@ -1,3 +1,18 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_phase: 1 — Schema, Templates, and Security Foundations
+current_plan: None (planning not yet started)
+status: planning
+last_updated: "2026-04-22T21:21:52.252Z"
+progress:
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+---
+
 # Project State: CloakBrowser-Manager
 
 **Milestone:** Warm-pool / Templates / Signed-Viewer
@@ -23,6 +38,7 @@
 **Status:** Planning
 
 **Progress:**
+
 ```
 [Phase 1] [Phase 2] [Phase 3] [Phase 4]
   [ ]        [ ]       [ ]       [ ]
@@ -107,6 +123,7 @@ None.
 **How to resume:** Read this file, then `ROADMAP.md` for phase details, then `REQUIREMENTS.md` for the full requirement list with traceability.
 
 **What "done" looks like for this milestone:**
+
 - `POST /sessions` with `(vendor_type, vendor_connection_id)` returns `{profile_id, cdp_url, vnc_viewer_url}` from a live warm-pooled browser
 - Profiles persist login state across sleep/wake cycles
 - Signed iframe viewer loads noVNC, validates token, streams VNC
