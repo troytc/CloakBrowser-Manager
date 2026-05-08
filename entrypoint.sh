@@ -4,6 +4,10 @@ set -e
 # Initialize data directories
 mkdir -p /data/profiles
 
+# Fix data volume ownership (OPS-04 / D-14) — runs BEFORE stale-process kill and singleton cleanup.
+# set -e aborts on failure: loud-fail by design. Requires container to run as root (no USER directive).
+chown -R ${CHROME_UID:-0}:${CHROME_UID:-0} /data/profiles
+
 # Kill stale processes from previous container runs
 pkill -f 'Xvnc :[0-9]' 2>/dev/null || true
 pkill -f 'cloakbrowser.*chrome' 2>/dev/null || true
