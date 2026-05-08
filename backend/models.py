@@ -24,7 +24,7 @@ class ProfileCreate(BaseModel):
     human_preset: Literal["default", "careful"] = "default"
     headless: bool = False
     geoip: bool = False
-    clipboard_sync: bool = True
+    clipboard_sync: bool = False
     color_scheme: Literal["light", "dark", "no-preference"] | None = None
     launch_args: list[str] = Field(default_factory=list)
     notes: str | None = None
@@ -83,12 +83,12 @@ class ProfileResponse(BaseModel):
     human_preset: str = "default"
     headless: bool = False
     geoip: bool = False
-    clipboard_sync: bool = True
+    clipboard_sync: bool = False
 
     @field_validator("clipboard_sync", mode="before")
     @classmethod
     def coerce_clipboard_sync(cls, v: object) -> bool:
-        return v if v is not None else True
+        return v if v is not None else False
 
     color_scheme: str | None = None
     launch_args: list[str] = []
@@ -129,3 +129,74 @@ class ClipboardRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     token: str
+
+
+class TemplateBlueprint(BaseModel):
+    """JSON payload stored in vendor_templates.blueprint (D-02).
+
+    Mirrors ProfileCreate fields EXCEPT fingerprint_seed — seed is generated
+    per-profile at creation time (D-04) to ensure each (vendor_type,
+    vendor_connection_id) has an identity-unique fingerprint.
+    """
+    # Fingerprint
+    timezone: str | None = None
+    locale: str | None = None
+    platform: Literal["windows", "macos", "linux"] = "windows"
+    user_agent: str | None = None
+
+    # Screen
+    screen_width: int = 1920
+    screen_height: int = 1080
+    color_scheme: Literal["light", "dark", "no-preference"] | None = None
+
+    # GPU
+    gpu_vendor: str | None = None
+    gpu_renderer: str | None = None
+    hardware_concurrency: int | None = None
+
+    # Behavior
+    humanize: bool = False
+    human_preset: Literal["default", "careful"] = "default"
+    launch_args: list[str] = Field(default_factory=list)
+
+    # Security — D-18: DEFAULT FALSE
+    clipboard_sync: bool = False
+
+    # Proxy
+    proxy: str | None = None
+
+    @field_validator("clipboard_sync", mode="before")
+    @classmethod
+    def enforce_clipboard_default(cls, v: object) -> bool:
+        """SEC-05 / D-18: null or missing coerces to False. Never True-by-default."""
+        return bool(v) if v is not None else False
+
+
+class VendorTemplateCreate(BaseModel):
+    vendor_type: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_-]+$")
+    label: str | None = None
+    notes: str | None = None
+    blueprint: TemplateBlueprint
+
+
+class VendorTemplateUpdate(BaseModel):
+    # vendor_type is the lookup key; changing it means delete+recreate
+    label: str | None = None
+    notes: str | None = None
+    blueprint: TemplateBlueprint | None = None
+
+
+class VendorTemplateResponse(BaseModel):
+    id: str
+    vendor_type: str
+    label: str | None = None
+    notes: str | None = None
+    blueprint: TemplateBlueprint
+    created_at: str
+    updated_at: str
+
+
+class TemplateDeleteBlockedResponse(BaseModel):
+    """409 response body shape when template is in use (D-06, D-13)."""
+    detail: str
+    blocking_profile_ids: list[str]
