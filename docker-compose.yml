@@ -7,3 +7,10 @@ services:
       - ~/.cloakbrowser-manager:/data
     environment:
       - AUTH_TOKEN=${AUTH_TOKEN:-}
+      - MAIN_APP_API_KEY=${MAIN_APP_API_KEY:-}
+      - VIEWER_SECRET=${VIEWER_SECRET:-}
+      - MAIN_APP_ORIGIN=${MAIN_APP_ORIGIN:-}
+      - IDLE_TIMEOUT_SECONDS=${IDLE_TIMEOUT_SECONDS:-600}
+      - VIEWER_TOKEN_TTL_SECS=${VIEWER_TOKEN_TTL_SECS:-300}
+      - CHROME_UID=${CHROME_UID:-0}
+      - DEV_MODE=${DEV_MODE:-}
