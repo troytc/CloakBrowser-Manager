@@ -43,7 +43,7 @@ const fakeProfile = {
   human_preset: "default",
   headless: false,
   geoip: false,
-  clipboard_sync: true,
+  clipboard_sync: false,
   color_scheme: null,
   notes: null,
   user_data_dir: "/data/profiles/abc-123",

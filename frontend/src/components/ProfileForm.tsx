@@ -64,7 +64,7 @@ export function ProfileForm({ profile, onSave, onDelete, onCancel }: ProfileForm
     human_preset: "default",
     headless: false,
     geoip: false,
-    clipboard_sync: true,
+    clipboard_sync: false,
     launch_args: [],
     tags: [],
   });
@@ -437,7 +437,7 @@ export function ProfileForm({ profile, onSave, onDelete, onCancel }: ProfileForm
             <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
               <input
                 type="checkbox"
-                checked={form.clipboard_sync ?? true}
+                checked={form.clipboard_sync ?? false}
                 onChange={(e) => set("clipboard_sync", e.target.checked)}
                 className="rounded border-border bg-surface-2"
               />
