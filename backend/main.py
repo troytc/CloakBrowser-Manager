@@ -50,6 +50,43 @@ logging.getLogger("asyncio").setLevel(logging.WARNING)
 # (except /api/auth/* and /api/status) require Bearer token or cookie.
 AUTH_TOKEN: str | None = os.environ.get("AUTH_TOKEN") or None
 
+# Fail-closed startup (SEC-06 / D-17) — machine-auth and viewer-token secrets.
+# Consumed by Phase 2 (MAIN_APP_API_KEY) and Phase 3 (VIEWER_SECRET);
+# Phase 1 only enforces their presence at startup.
+VIEWER_SECRET: str | None = os.environ.get("VIEWER_SECRET")
+MAIN_APP_API_KEY: str | None = os.environ.get("MAIN_APP_API_KEY")
+DEV_MODE: bool = os.environ.get("DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+
+_DEV_MODE_WARNING = (
+    "⚠ DEV_MODE=1: VIEWER_SECRET and/or MAIN_APP_API_KEY not set. "
+    "Authentication is bypassed. Do not use in production."
+)
+
+
+def _check_required_env() -> None:
+    """Fail-closed check for production secrets (SEC-06 / D-17).
+
+    Raises RuntimeError if MAIN_APP_API_KEY or VIEWER_SECRET is unset/blank
+    and DEV_MODE is False. Logs a loud WARNING in DEV_MODE instead.
+    """
+    missing: list[str] = []
+    if not (VIEWER_SECRET and VIEWER_SECRET.strip()):
+        missing.append("VIEWER_SECRET")
+    if not (MAIN_APP_API_KEY and MAIN_APP_API_KEY.strip()):
+        missing.append("MAIN_APP_API_KEY")
+    if not missing:
+        return
+    if DEV_MODE:
+        logger.warning(_DEV_MODE_WARNING)
+        logger.warning("Missing in dev mode: %s", ", ".join(missing))
+        return
+    raise RuntimeError(
+        "Refusing to start: required env vars not set: "
+        + ", ".join(missing)
+        + ". Set them in your environment, or set DEV_MODE=1 for local development."
+    )
+
+
 # Paths that bypass authentication even when AUTH_TOKEN is set
 _AUTH_EXEMPT = frozenset({"/api/auth/status", "/api/auth/login", "/api/status"})
 
@@ -371,6 +408,7 @@ def _filter_rfb_client_messages(data: bytes) -> bytes:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _check_required_env()           # ← fail-closed before DB init / browser setup (SEC-06 / D-17)
     db.init_db()
     await browser_mgr.cleanup_stale()
     logger.info("CloakBrowser Manager started")
