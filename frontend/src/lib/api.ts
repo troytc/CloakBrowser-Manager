@@ -71,10 +71,51 @@ export interface SystemStatus {
   profiles_total: number;
 }
 
-class ApiError extends Error {
+export interface TemplateBlueprint {
+  timezone: string | null;
+  locale: string | null;
+  platform: "windows" | "macos" | "linux";
+  user_agent: string | null;
+  screen_width: number;
+  screen_height: number;
+  color_scheme: "light" | "dark" | "no-preference" | null;
+  gpu_vendor: string | null;
+  gpu_renderer: string | null;
+  hardware_concurrency: number | null;
+  humanize: boolean;
+  human_preset: "default" | "careful";
+  launch_args: string[];
+  clipboard_sync: boolean;
+  proxy: string | null;
+}
+
+export interface VendorTemplate {
+  id: string;
+  vendor_type: string;
+  label: string | null;
+  notes: string | null;
+  blueprint: TemplateBlueprint;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VendorTemplateCreateData {
+  vendor_type: string;
+  label?: string | null;
+  notes?: string | null;
+  blueprint: TemplateBlueprint;
+}
+
+export interface TemplateDeleteBlockedError {
+  detail: string;
+  blocking_profile_ids: string[];
+}
+
+export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -95,12 +136,16 @@ async function request<T>(
     ...options,
   });
   if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
     if (res.status === 401 && _onUnauthorized) {
       _onUnauthorized();
-      throw new ApiError(401, "Unauthorized");
+      throw new ApiError(401, "Unauthorized", body);
     }
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, body.detail || res.statusText);
+    const detailText =
+      typeof (body as { detail?: unknown })?.detail === "string"
+        ? (body as { detail: string }).detail
+        : res.statusText;
+    throw new ApiError(res.status, detailText, body);
   }
   return res.json();
 }
@@ -153,4 +198,21 @@ export const api = {
 
   getClipboard: (id: string) =>
     request<{ text: string }>(`/api/profiles/${id}/clipboard`),
+
+  templates: {
+    list: () => request<VendorTemplate[]>("/api/templates"),
+    get: (id: string) => request<VendorTemplate>(`/api/templates/${id}`),
+    create: (data: VendorTemplateCreateData) =>
+      request<VendorTemplate>("/api/templates", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Partial<VendorTemplateCreateData>) =>
+      request<VendorTemplate>(`/api/templates/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    remove: (id: string) =>
+      request<{ ok: boolean }>(`/api/templates/${id}`, { method: "DELETE" }),
+  },
 };
