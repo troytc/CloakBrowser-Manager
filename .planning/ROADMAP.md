@@ -33,7 +33,15 @@
   4. The service refuses to start when `VIEWER_SECRET` or `MAIN_APP_API_KEY` is absent or blank (production mode); `.env.example` documents all new required vars.
   5. After a container recreate on a volume with a UID mismatch, Chromium can flush its cookie database without permission errors (Docker entrypoint `chown` runs before service start).
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [x] 01-01-PLAN.md — Schema migration, template Pydantic models, clipboard_sync flip, PyJWT dep
+- [x] 01-02-PLAN.md — Docker entrypoint chown + env var scaffolding (docker-compose.yml, .env.example)
+- [x] 01-03-PLAN.md — Fail-closed startup check for MAIN_APP_API_KEY and VIEWER_SECRET
+- [ ] 01-04-PLAN.md — Template CRUD router (/api/templates) with two-layer delete guard
+- [ ] 01-05-PLAN.md — Frontend API types + useTemplates polling hook with 409 delete-blocked state
+- [ ] 01-06-PLAN.md — TemplateList / TemplateForm / DeleteBlockedModal components + App.tsx surface switcher
 
 **UI hint**: yes
 
