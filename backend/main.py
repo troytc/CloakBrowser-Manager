@@ -37,6 +37,7 @@ from .models import (
     StatusResponse,
     TagResponse,
 )
+from .routers.templates import router as templates_router
 
 logger = logging.getLogger("cloakbrowser.manager")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -419,6 +420,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="CloakBrowser Manager", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
+app.include_router(templates_router)
 
 
 # ── Authentication ────────────────────────────────────────────────────────────
