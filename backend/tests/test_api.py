@@ -230,11 +230,11 @@ def test_profile_launch_args_get(app_client: TestClient):
 # ── Clipboard Sync Setting ──────────────────────────────────────────────────
 
 
-def test_profile_clipboard_sync_default_true(app_client: TestClient):
-    """New profiles should have clipboard_sync=true by default."""
+def test_profile_clipboard_sync_default_false(app_client: TestClient):
+    """New profiles default to clipboard_sync=false (SEC-05 / D-18)."""
     resp = app_client.post("/api/profiles", json={"name": "Clipboard Test"})
     assert resp.status_code == 201
-    assert resp.json()["clipboard_sync"] is True
+    assert resp.json()["clipboard_sync"] is False
 
 
 def test_profile_clipboard_sync_update(app_client: TestClient):

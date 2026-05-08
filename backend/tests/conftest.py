@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# Set DEV_MODE BEFORE `from backend import main` happens anywhere — main.py's
+# lifespan calls _check_required_env() which raises RuntimeError when
+# MAIN_APP_API_KEY or VIEWER_SECRET is unset and DEV_MODE is not 1
+# (SEC-06 / D-17 / T-01-23). DEV_MODE=1 keeps the import + TestClient lifespan
+# usable in tests without shipping real secrets.
+# ---------------------------------------------------------------------------
+
+os.environ.setdefault("DEV_MODE", "1")
 
 # ---------------------------------------------------------------------------
 # Mock cloakbrowser BEFORE any backend module is imported.
