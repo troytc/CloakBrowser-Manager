@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 
 import { ApiError } from "../lib/api";
 import { useTemplates } from "./useTemplates";
@@ -63,7 +63,9 @@ const fakeTemplate = {
 beforeEach(() => {
   // Revision 2 (WARNING #3): neutralise the useTemplates polling setInterval(refresh, 3000)
   // so a mid-test poll cannot race the test's assertion that `error` was set by `remove`.
-  // Vitest 1.x advances fake timers automatically inside act(); waitFor still works.
+  // vi.useFakeTimers() freezes the fake clock; we then use
+  // `await act(async () => { vi.advanceTimersByTime(100); })` to flush initial load
+  // microtasks without advancing 3000ms (so the polling interval never fires).
   vi.useFakeTimers();
   mockTemplatesApi.list.mockResolvedValue([fakeTemplate]);
 });
@@ -73,12 +75,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** Flush the initial mount load: advance fake clock 100ms (< 3000ms poll interval)
+ * inside act() so that Promise microtasks for api.templates.list resolve and
+ * setLoading(false) is committed to React state before assertions begin.
+ */
+async function flushInitialLoad(result: { current: { loading: boolean } }) {
+  await act(async () => {
+    vi.advanceTimersByTime(100);
+  });
+  // Sanity: if load didn't settle, subsequent assertions will fail with clear messages.
+  if (result.current.loading) {
+    throw new Error("useTemplates did not finish initial load after 100ms fake-time advance");
+  }
+}
+
 describe("useTemplates.remove discriminated-union return (BL-02)", () => {
   it("returns { blocked: false } on successful delete and removes the row", async () => {
     mockTemplatesApi.remove.mockResolvedValue({ ok: true });
 
     const { result } = renderHook(() => useTemplates());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushInitialLoad(result);
     expect(result.current.templates).toHaveLength(1);
 
     let outcome: { blocked: boolean } | undefined;
@@ -100,7 +116,7 @@ describe("useTemplates.remove discriminated-union return (BL-02)", () => {
     );
 
     const { result } = renderHook(() => useTemplates());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushInitialLoad(result);
 
     let outcome: { blocked: boolean; blockingIds?: string[] } | undefined;
     await act(async () => {
@@ -130,7 +146,7 @@ describe("useTemplates.remove discriminated-union return (BL-02)", () => {
     );
 
     const { result } = renderHook(() => useTemplates());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushInitialLoad(result);
 
     let outcome: { blocked: boolean; blockingIds?: string[] } | undefined;
     await act(async () => {
@@ -148,7 +164,7 @@ describe("useTemplates.remove discriminated-union return (BL-02)", () => {
     mockTemplatesApi.remove.mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => useTemplates());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await flushInitialLoad(result);
 
     let outcome: { blocked: boolean } | undefined;
     await act(async () => {
