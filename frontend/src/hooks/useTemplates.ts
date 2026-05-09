@@ -54,6 +54,16 @@ function isDeleteBlockedBody(body: unknown): body is TemplateDeleteBlockedError 
   return false;
 }
 
+/**
+ * Result of useTemplates.remove. The caller branches on `blocked` to decide
+ * whether to unmount the Edit-Template form. This sidesteps the stale-closure
+ * hazard from reading `deleteBlocked` after `await remove(id)` resolves
+ * (BL-02 / 01-VERIFICATION.md gap[0]).
+ */
+export type RemoveTemplateResult =
+  | { blocked: true; blockingIds: string[] }
+  | { blocked: false };
+
 /** Pull the blocking_profile_ids array out of either supported 409 body shape. */
 function readBlockingIds(body: unknown): string[] {
   if (typeof body !== "object" || body === null) {
@@ -132,23 +142,29 @@ export function useTemplates() {
   );
 
   const remove = useCallback(
-    async (id: string): Promise<void> => {
+    async (id: string): Promise<RemoveTemplateResult> => {
       const existing = templates.find((t) => t.id === id);
       try {
         await api.templates.remove(id);
         setTemplates((prev) => prev.filter((x) => x.id !== id));
         setError(null);
+        return { blocked: false };
       } catch (err) {
-        // 409 delete-blocked with structured body → populate deleteBlocked, not error
+        // 409 delete-blocked with structured body → populate deleteBlocked AND
+        // signal the caller via the return value so it does not unmount the form.
         if (err instanceof ApiError && err.status === 409 && isDeleteBlockedBody(err.body)) {
+          const blockingIds = readBlockingIds(err.body);
           setDeleteBlocked({
             templateId: id,
             vendorType: existing?.vendor_type ?? "?",
-            blockingIds: readBlockingIds(err.body),
+            blockingIds,
           });
-          return;
+          return { blocked: true, blockingIds };
         }
         setError(err instanceof Error ? err.message : "Failed to delete template");
+        // Non-409 errors are NOT delete-blocked. The caller is free to unmount;
+        // the error banner surfaces the failure separately.
+        return { blocked: false };
       }
     },
     [templates],

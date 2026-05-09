@@ -141,8 +141,12 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
 
   const handleDeleteTemplateFromForm = async () => {
     if (!selectedTemplateId) return;
-    await removeTemplate(selectedTemplateId);
-    if (!deleteBlocked) {
+    const result = await removeTemplate(selectedTemplateId);
+    // BL-02 fix: branch on the returned discriminated union, not on the
+    // `deleteBlocked` closure (which reads the prior render's value).
+    // When blocked, leave selectedTemplateId/templateView unchanged so the
+    // form stays mounted under DeleteBlockedModal.
+    if (!result.blocked) {
       setSelectedTemplateId(null);
       setTemplateView("empty");
     }
