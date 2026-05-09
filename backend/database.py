@@ -83,7 +83,15 @@ def init_db():
         # Migrations for existing databases
         cols = {row[1] for row in conn.execute("PRAGMA table_info(profiles)").fetchall()}
         if "clipboard_sync" not in cols:
-            conn.execute("ALTER TABLE profiles ADD COLUMN clipboard_sync BOOLEAN DEFAULT 1")
+            # SEC-06 / CLAUDE.md security rule 2: clipboard_sync defaults to false on every profile.
+            # Note: in the original v0.0.7 schema this column did not exist, so this ALTER only
+            # runs once per legacy DB. The DEFAULT 0 here aligns with the CREATE TABLE default.
+            conn.execute("ALTER TABLE profiles ADD COLUMN clipboard_sync BOOLEAN DEFAULT 0")
+            # Defense-in-depth: any DB that landed between Plan 01-01's flip and this fix
+            # (i.e., the column was added under DEFAULT 1) carries clipboard_sync=1 rows.
+            # Normalize them now, BEFORE the wipe block below has a chance to run, so any
+            # row that survives the wipe (or a DB that no longer triggers the wipe path) is safe.
+            conn.execute("UPDATE profiles SET clipboard_sync = 0 WHERE clipboard_sync = 1")
             conn.commit()
         if "launch_args" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN launch_args TEXT DEFAULT '[]'")
