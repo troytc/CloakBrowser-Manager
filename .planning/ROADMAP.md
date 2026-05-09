@@ -67,7 +67,18 @@ Plans:
   4. `GET /profiles?vendor_type=X&vendor_connection_id=Y` returns the matching profile; `DELETE /profiles/{id}` stops the session and removes the on-disk directory; all machine routes return 401 to callers without a valid `MAIN_APP_API_KEY`.
   5. After a service restart, all profiles start `STOPPED` with zero attach counts; no profiles auto-wake; the first `POST /sessions` after restart successfully wakes a profile within the launch timeout.
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Wave 1: BrowserManager hardening (Semaphore(3), about:blank probe, _stop_locked refactor, RunningProfile extension)
+- [ ] 02-02-PLAN.md — Wave 1: APIKeyHeader auth (require_api_key) + AuthMiddleware /sessions /profiles exemption + CDP WS X-API-Key check
+- [ ] 02-03-PLAN.md — Wave 1: upsert_profile_by_vendor() + list_profiles_filtered() + NoTemplateError in database.py
+- [ ] 02-04-PLAN.md — Wave 2: SessionManager keystone (per-key locks, idle task lifecycle, get_or_wake)
+- [ ] 02-05-PLAN.md — Wave 2: FastAPI lifespan SessionManager wiring + CDP WS try/finally count mutations
+- [ ] 02-06-PLAN.md — Wave 1: Pydantic models — SessionRequest/Response/StatusResponse/ListItem, ProfilePatch, MachineProfileResponse
+- [ ] 02-07-PLAN.md — Wave 3: backend/routers/sessions.py — POST/GET/DELETE /sessions + integration tests including SESS-07 race regression
+- [ ] 02-08-PLAN.md — Wave 4: backend/routers/profiles.py — GET/PATCH/DELETE /profiles + integration tests
+- [ ] 02-09-PLAN.md — Wave 5: pytest slow marker + test_warm_pool_e2e.py (sleep/wake state persistence + restart safety)
 
 **Parallelization notes**:
 - `SessionList.tsx` (Phase 4 frontend) can begin development once `GET /sessions` exists — it is purely additive React work.
@@ -132,7 +143,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Schema, Templates, and Security Foundations | 0/? | Not started | - |
-| 2. Sessions, Warm-Pool, and CDP Lifecycle | 0/? | Not started | - |
+| 2. Sessions, Warm-Pool, and CDP Lifecycle | 0/9 | Not started | - |
 | 3. Signed Viewer URLs and Security Hardening | 0/? | Not started | - |
 | 4. Admin Dashboard Pivot and API Surface Cleanup | 0/? | Not started | - |
 
