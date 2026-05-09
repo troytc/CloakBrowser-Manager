@@ -1,5 +1,5 @@
 /**
- * API client for CloakBrowser Manager backend.
+ * API client for VendorBrowser backend.
  */
 
 export interface Profile {

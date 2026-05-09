@@ -1,8 +1,8 @@
 <p align="center">
-<img src="https://i.imgur.com/cqkp6fG.png" width="500" alt="CloakBrowser">
+<img src="https://i.imgur.com/cqkp6fG.png" width="500" alt="VendorBrowser">
 </p>
 
-<h3 align="center">Browser Profile Manager for CloakBrowser</h3>
+<h3 align="center">VendorBrowser — powered by CloakBrowser</h3>
 
 <p align="center">
 Create, manage, and launch isolated browser profiles with unique fingerprints.<br>
@@ -11,35 +11,35 @@ Free, self-hosted alternative to Multilogin, GoLogin, and AdsPower.
 
 <p align="center">
 <a href="https://github.com/CloakHQ/CloakBrowser"><img src="https://img.shields.io/github/stars/cloakhq/cloakbrowser?label=CloakBrowser" alt="Stars"></a>
-<a href="https://hub.docker.com/r/cloakhq/cloakbrowser-manager"><img src="https://img.shields.io/docker/pulls/cloakhq/cloakbrowser-manager?label=docker&logo=docker&logoColor=white" alt="Docker Pulls"></a>
+<a href="https://hub.docker.com/r/nowkickback/vendorbrowser"><img src="https://img.shields.io/docker/pulls/nowkickback/vendorbrowser?label=docker&logo=docker&logoColor=white" alt="Docker Pulls"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
 </p>
 
 ---
 
 <p align="center">
-<img src="https://i.imgur.com/twdX81Q.png" width="800" alt="CloakBrowser Manager — Browser View">
+<img src="https://i.imgur.com/twdX81Q.png" width="800" alt="VendorBrowser — Browser View">
 <br>
-<img src="https://i.imgur.com/XFYn1qY.png" width="800" alt="CloakBrowser Manager — Profile Settings">
+<img src="https://i.imgur.com/XFYn1qY.png" width="800" alt="VendorBrowser — Profile Settings">
 </p>
 
 Each profile is an isolated CloakBrowser instance with its own fingerprint, proxy, cookies, and session data. Profiles persist across restarts. Everything runs in one Docker container.
 
 ```bash
-docker run -p 8080:8080 -v cloakprofiles:/data cloakhq/cloakbrowser-manager
+docker run -p 8080:8080 -v vendorprofiles:/data nowkickback/vendorbrowser
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/CloakHQ/CloakBrowser-Manager.git
-cd CloakBrowser-Manager
+git clone https://github.com/nowkickback/VendorBrowser.git
+cd VendorBrowser
 docker compose up --build
 ```
 
 Open [http://localhost:8080](http://localhost:8080) in your browser. Create a profile. Click Launch. Done.
 
-> **Early alpha** — this project is under active development. Expect bugs. If you find one, please [open an issue](https://github.com/CloakHQ/CloakBrowser-Manager/issues).
+> **Early alpha** — this project is under active development. Expect bugs. If you find one, please [open an issue](https://github.com/nowkickback/VendorBrowser/issues).
 
 ## Why Not Just Use a VPN?
 
@@ -109,12 +109,12 @@ docker compose up --build
 Pull the latest image and restart:
 
 ```bash
-docker pull cloakhq/cloakbrowser-manager
+docker pull nowkickback/vendorbrowser
 docker stop <container-id>
-docker run -p 8080:8080 -v cloakprofiles:/data cloakhq/cloakbrowser-manager
+docker run -p 8080:8080 -v vendorprofiles:/data nowkickback/vendorbrowser
 ```
 
-Your profiles and session data are stored in the `cloakprofiles` volume and persist across updates.
+Your profiles and session data are stored in the `vendorprofiles` volume and persist across updates.
 
 ## Automation API
 
@@ -158,7 +158,7 @@ Then open `http://localhost:8080`.
 By default, there is no authentication (ideal for local use). To protect the web UI and API when hosting on a network, set the `AUTH_TOKEN` environment variable:
 
 ```bash
-docker run -p 8080:8080 -v cloakprofiles:/data -e AUTH_TOKEN=your-secret-token cloakhq/cloakbrowser-manager
+docker run -p 8080:8080 -v vendorprofiles:/data -e AUTH_TOKEN=your-secret-token nowkickback/vendorbrowser
 ```
 
 Or in `docker-compose.yml`:
@@ -175,7 +175,7 @@ When `AUTH_TOKEN` is set:
 - VNC WebSocket connections are authenticated via the login cookie.
 - The `/api/status` endpoint remains unauthenticated (for Docker healthcheck).
 
-> **Note**: The auth token is transmitted in cleartext over HTTP. If you expose the Manager to the internet, put it behind a reverse proxy with HTTPS (Caddy, nginx, Traefik).
+> **Note**: The auth token is transmitted in cleartext over HTTP. If you expose VendorBrowser to the internet, put it behind a reverse proxy with HTTPS (Caddy, nginx, Traefik).
 
 ## License
 
@@ -186,11 +186,10 @@ The GUI application requires the CloakBrowser Chromium binary to function. The b
 
 ## Contributing
 
-Contributions are welcome. Please [open an issue](https://github.com/CloakHQ/CloakBrowser-Manager/issues) first to discuss what you'd like to change.
+Contributions are welcome. Please [open an issue](https://github.com/nowkickback/VendorBrowser/issues) first to discuss what you'd like to change.
 
 ## Links
 
-- **CloakBrowser** — [github.com/CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser)
-- **Website** — [cloakbrowser.dev](https://cloakbrowser.dev)
-- **Bug reports** — [GitHub Issues](https://github.com/CloakHQ/CloakBrowser-Manager/issues)
-- **Contact** — cloakhq@pm.me
+- **CloakBrowser** (browser engine) — [github.com/CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser)
+- **CloakBrowser website** — [cloakbrowser.dev](https://cloakbrowser.dev)
+- **Bug reports** — [GitHub Issues](https://github.com/nowkickback/VendorBrowser/issues)

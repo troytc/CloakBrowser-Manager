@@ -1,10 +1,11 @@
 services:
-  manager:
+  vendorbrowser:
     build: .
+    image: nowkickback/vendorbrowser
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - ~/.cloakbrowser-manager:/data
+      - ~/.vendorbrowser:/data
     environment:
       - AUTH_TOKEN=${AUTH_TOKEN:-}
       - MAIN_APP_API_KEY=${MAIN_APP_API_KEY:-}

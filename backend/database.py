@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("cloakbrowser.manager.database")
+logger = logging.getLogger("vendorbrowser.database")
 
 DATA_DIR = Path("/data")
 DB_PATH = DATA_DIR / "profiles.db"

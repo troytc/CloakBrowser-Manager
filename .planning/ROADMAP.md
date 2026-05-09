@@ -1,4 +1,4 @@
-# Roadmap: CloakBrowser-Manager
+# Roadmap: VendorBrowser
 
 **Milestone:** Warm-pool / Templates / Signed-Viewer
 **Created:** 2026-04-22

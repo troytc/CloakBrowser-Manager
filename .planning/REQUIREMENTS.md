@@ -1,4 +1,4 @@
-# Requirements: CloakBrowser-Manager
+# Requirements: VendorBrowser
 
 **Defined:** 2026-04-22
 **Core Value:** One idempotent API call gives the Main App a live CDP URL + a scoped iframe viewer URL for a vendor-specific browser profile, with session state preserved across automation runs via a warm pool.

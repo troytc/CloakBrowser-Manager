@@ -1,4 +1,4 @@
-"""CloakBrowser Manager — FastAPI application.
+"""VendorBrowser — FastAPI application.
 
 Serves the React dashboard (static files) and provides a REST API
 for browser profile management with live VNC viewing.
@@ -39,7 +39,7 @@ from .models import (
 )
 from .routers.templates import router as templates_router
 
-logger = logging.getLogger("cloakbrowser.manager")
+logger = logging.getLogger("vendorbrowser")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logging.getLogger("websockets").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -333,7 +333,7 @@ def _rfb_msg_length(data: bytes, offset: int) -> int | None:
 
 def _rewrite_set_encodings(data: bytes, offset: int, msg_len: int) -> bytes:
     """Keep only whitelisted encodings in a SetEncodings message."""
-    _log = logging.getLogger("cloakbrowser.manager")
+    _log = logging.getLogger("vendorbrowser")
     num_enc = struct.unpack_from(">H", data, offset + 2)[0]
     kept = []
     stripped = []
@@ -371,7 +371,7 @@ def _filter_rfb_client_messages(data: bytes) -> bytes:
     Rewrites PointerEvents from 6-byte standard to 11-byte KasmVNC format
     and strips unsupported pseudo-encodings from SetEncodings.
     """
-    _log = logging.getLogger("cloakbrowser.manager")
+    _log = logging.getLogger("vendorbrowser")
     result = bytearray()
     offset = 0
     msg_idx = 0
@@ -412,13 +412,13 @@ async def lifespan(app: FastAPI):
     _check_required_env()           # ← fail-closed before DB init / browser setup (SEC-06 / D-17)
     db.init_db()
     await browser_mgr.cleanup_stale()
-    logger.info("CloakBrowser Manager started")
+    logger.info("VendorBrowser started")
     yield
     logger.info("Shutting down — stopping all browsers...")
     await browser_mgr.cleanup_all()
 
 
-app = FastAPI(title="CloakBrowser Manager", lifespan=lifespan)
+app = FastAPI(title="VendorBrowser", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
 app.include_router(templates_router)
 

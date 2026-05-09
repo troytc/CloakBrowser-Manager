@@ -1,8 +1,8 @@
-# CloakBrowser-Manager
+# VendorBrowser
 
 ## What This Is
 
-CloakBrowser-Manager is a single-host headless-profile service that sits behind one downstream application (the "Main App"). It manages one durable Chromium profile per `(vendor_type, vendor_connection_id)` — driven by vendor templates that lock in fingerprint, locale, timezone, platform, and launch flags per vendor — and exposes a single API call that returns a CDP URL for automation plus a signed iframe viewer URL for end-user intervention (e.g., 2FA).
+VendorBrowser (powered by CloakBrowser) is a single-host headless-profile service that sits behind one downstream application (the "Main App"). It manages one durable Chromium profile per `(vendor_type, vendor_connection_id)` — driven by vendor templates that lock in fingerprint, locale, timezone, platform, and launch flags per vendor — and exposes a single API call that returns a CDP URL for automation plus a signed iframe viewer URL for end-user intervention (e.g., 2FA).
 
 The Main App uses it as infrastructure to programmatically log into vendor portals on behalf of its users, keeping each vendor account cleanly isolated in its own persistent browser profile.
 

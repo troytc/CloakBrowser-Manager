@@ -21,7 +21,7 @@ from ..models import (
     VendorTemplateUpdate,
 )
 
-logger = logging.getLogger("cloakbrowser.manager.templates")
+logger = logging.getLogger("vendorbrowser.templates")
 router = APIRouter(prefix="/api/templates", tags=["templates"])
 
 

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 
-logger = logging.getLogger("cloakbrowser.manager.vnc")
+logger = logging.getLogger("vendorbrowser.vnc")
 
 
 @dataclass

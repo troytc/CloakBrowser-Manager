@@ -14,7 +14,7 @@ progress:
   percent: 25
 ---
 
-# Project State: CloakBrowser-Manager
+# Project State: VendorBrowser
 
 **Milestone:** Warm-pool / Templates / Signed-Viewer
 **Initialized:** 2026-04-22

@@ -16,7 +16,7 @@ from cloakbrowser import launch_persistent_context_async
 
 from .vnc_manager import VNCManager
 
-logger = logging.getLogger("cloakbrowser.manager.browser")
+logger = logging.getLogger("vendorbrowser.browser")
 
 
 def _normalize_proxy(raw: str) -> str:
