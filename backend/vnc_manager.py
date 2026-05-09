@@ -62,6 +62,10 @@ class VNCManager:
             "-interface", "127.0.0.1",  # internal only, proxied by FastAPI
             "-AlwaysShared",
             "-httpd", httpd_dir,
+            # Skip ~70s STUN discovery: WebSocket transport doesn't use UDP,
+            # and STUN servers are unreachable from this container, blocking
+            # X server startup until they time out.
+            "-publicIP", "127.0.0.1",
         ]
 
         log_path = f"/tmp/xvnc-{display}.log"
