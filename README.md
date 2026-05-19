@@ -75,16 +75,82 @@ Each CloakBrowser profile generates a completely different device identity. To t
 
 ## Development
 
-### Backend
+### Prerequisites
+
+| Tool | Version | Notes |
+|------|---------|--------|
+| Python | 3.11+ (3.12 in Docker) | Backend API and tests |
+| Node.js | 20+ | Frontend dev server and build |
+| Docker | 20.10+ | **Recommended** for running Chromium, KasmVNC, and noVNC together |
+
+The API stores profiles under `/data` (SQLite + Chromium user-data dirs). Docker maps that to `~/.vendorbrowser` on the host. Native runs need a writable `/data` (see [Native backend](#native-backend) below).
+
+### Environment
+
+Copy the example env file and edit it for local work:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Local dev |
+|----------|-----------|
+| `DEV_MODE=1` | Lets the API start without `MAIN_APP_API_KEY` / `VIEWER_SECRET` (logs a warning). Use only on your machine. |
+| `AUTH_TOKEN` | Optional. If set, the admin dashboard and `/api/*` (except health/auth) require this token. |
+| `MAIN_APP_API_KEY` | Required for machine routes (`/sessions/*`, `/profiles/*`) unless `DEV_MODE=1`. |
+| `VIEWER_SECRET` | Required for signed viewer URLs unless `DEV_MODE=1`. |
+| `MAIN_APP_ORIGIN` | CSP `frame-ancestors` for `/viewer/*`. Use `http://localhost:5173` when using the Vite dev server. |
+
+Docker Compose reads `.env` from the repo root automatically. For a native shell, export variables before starting uvicorn:
+
+```bash
+set -a && source .env && set +a
+```
+
+### Recommended: Docker Compose
+
+Runs the full stack (API, built dashboard, CloakBrowser, VNC) the same way production does:
+
+```bash
+docker compose up --build
+```
+
+- Dashboard: [http://localhost:8080](http://localhost:8080)
+- Data volume: `~/.vendorbrowser` → `/data` inside the container
+- Override secrets and flags via `.env` (see [Environment](#environment))
+
+Rebuild after backend or frontend changes:
+
+```bash
+docker compose up --build
+```
+
+### Split-stack dev (hot-reload UI)
+
+Best when you are changing React code. The Vite dev server proxies `/api` to the backend on port 8080.
+
+**Terminal 1 — API**
 
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
+set -a && source ../.env && set +a   # from repo root .env
+uvicorn asgi:app --reload --port 8080
 ```
 
-### Frontend
+Run from `backend/` so Python loads `asgi.py`, which imports `backend.main:app` with the correct package path. Do **not** use `uvicorn main:app` — that breaks relative imports on reload.
+
+Equivalent from the **repo root** (same module path as Docker):
+
+```bash
+cd /path/to/CloakBrowser-Manager
+source backend/.venv/bin/activate
+set -a && source .env && set +a
+uvicorn backend.main:app --reload --port 8080
+```
+
+**Terminal 2 — frontend**
 
 ```bash
 cd frontend
@@ -92,10 +158,48 @@ npm install
 npm run dev
 ```
 
-### Docker
+- UI: [http://localhost:5173](http://localhost:5173) (Vite; `/api` → `http://localhost:8080`)
+- Set `MAIN_APP_ORIGIN=http://localhost:5173` in `.env` if you exercise signed viewer iframes locally.
+
+**Limitation:** launching profiles and live VNC still need CloakBrowser, KasmVNC, and system libraries. For end-to-end browser work, use [Docker Compose](#recommended-docker-compose) or a Linux host with the same dependencies as the [Dockerfile](Dockerfile).
+
+### Native backend
+
+If you run the API outside Docker:
+
+1. **Data directory** — the app writes to `/data`:
+
+   ```bash
+   sudo mkdir -p /data && sudo chown "$USER" /data
+   ```
+
+2. **Dependencies** — `pip install -r backend/requirements.txt` (includes `cloakbrowser[geoip]`). The CloakBrowser binary is downloaded on first launch.
+
+3. **VNC stack** — profile viewing expects KasmVNC (installed in the Docker image). Without it, API and dashboard development still work; in-browser VNC will not.
+
+4. **Serve the built dashboard from the API** (optional, single port):
+
+   ```bash
+   cd frontend && npm install && npm run build
+   cd ../backend && uvicorn asgi:app --reload --port 8080
+   ```
+
+   Open [http://localhost:8080](http://localhost:8080) when `frontend/dist` exists.
+
+### Tests
+
+From the **repo root** (uses `pyproject.toml`):
 
 ```bash
-docker compose up --build
+# Backend (fast suite; excludes slow Chromium e2e by default)
+pip install -r backend/requirements.txt pytest
+pytest
+
+# Slow warm-pool e2e (real browser + VNC; Docker or full native deps)
+pytest -m slow
+
+# Frontend
+cd frontend && npm test
 ```
 
 ## Requirements
