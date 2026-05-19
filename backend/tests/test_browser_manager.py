@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from backend.browser_manager import (
+    BrowserLaunchError,
+    BrowserManager,
+    RunningProfile,
     _init_profile_defaults,
     _normalize_proxy,
     _validate_proxy,
-    BrowserManager,
 )
 
 
@@ -206,3 +210,136 @@ def test_init_idempotent(tmp_path: Path):
     # Second call should NOT overwrite (file already exists)
     _init_profile_defaults(tmp_path)
     assert bookmarks_path.read_text() == "SENTINEL"
+
+
+# ── Phase 2: RunningProfile extension, semaphore, probe, _stop_locked ─────────
+
+
+def test_running_profile_has_phase2_fields():
+    rp = RunningProfile(
+        profile_id="p", context=None, display=1, ws_port=6100, cdp_port=5100
+    )
+    assert rp.cdp_attach_count == 0
+    assert rp.viewer_attach_count == 0
+    assert rp.last_launched_at is None
+    assert rp.idle_started_at is None
+
+
+def test_browser_manager_has_semaphore_3():
+    bm = BrowserManager()
+    assert isinstance(bm._launch_sem, asyncio.Semaphore)
+    assert bm._launch_sem._value == 3
+
+
+def test_browser_launch_error_is_runtime_error():
+    assert issubclass(BrowserLaunchError, RuntimeError)
+
+
+def test_launch_timeout_secs_constant():
+    assert BrowserManager.LAUNCH_TIMEOUT_SECS == 30
+
+
+def _make_profile(tmp_path: Path, profile_id: str = "p1") -> dict:
+    return {
+        "id": profile_id,
+        "name": "test",
+        "user_data_dir": str(tmp_path / "udd"),
+        "fingerprint_seed": 12345,
+        "screen_width": 1920,
+        "screen_height": 1080,
+        "launch_args": [],
+    }
+
+
+@pytest.fixture()
+def bm(monkeypatch):
+    bm_instance = BrowserManager()
+    bm_instance.vnc = MagicMock()
+    bm_instance.vnc.allocate = AsyncMock(return_value=(99, 6199))
+    bm_instance.vnc.start_vnc = AsyncMock()
+    bm_instance.vnc.stop_vnc = AsyncMock()
+    bm_instance.vnc.BASE_DISPLAY = 99
+    return bm_instance
+
+
+@pytest.mark.asyncio
+async def test_stop_locked_does_not_acquire_lock(bm):
+    rp = RunningProfile(
+        profile_id="p1", context=AsyncMock(), display=99, ws_port=6199, cdp_port=5100
+    )
+    bm.running["p1"] = rp
+    async with bm._lock:
+        await bm._stop_locked("p1")
+    assert "p1" not in bm.running
+
+
+@pytest.mark.asyncio
+async def test_stop_calls_stop_locked_under_lock(bm):
+    rp = RunningProfile(
+        profile_id="p1", context=AsyncMock(), display=99, ws_port=6199, cdp_port=5100
+    )
+    bm.running["p1"] = rp
+    await bm.stop("p1")
+    assert "p1" not in bm.running
+
+
+@pytest.mark.asyncio
+async def test_stop_idempotent_for_unknown_profile(bm):
+    result = await bm.stop("does-not-exist")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_singleton_lock_files_removed_on_launch(bm, tmp_path, monkeypatch):
+    udd = tmp_path / "udd"
+    udd.mkdir()
+    for fname in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        (udd / fname).write_text("stale")
+    fake_ctx = MagicMock()
+    fake_ctx.add_init_script = AsyncMock()
+    fake_ctx.pages = []
+    fake_page = MagicMock()
+    fake_page.goto = AsyncMock()
+    fake_page.close = AsyncMock()
+    fake_ctx.new_page = AsyncMock(return_value=fake_page)
+    fake_ctx.on = MagicMock()
+    monkeypatch.setattr(
+        "backend.browser_manager.launch_persistent_context_async",
+        AsyncMock(return_value=fake_ctx),
+    )
+    profile = _make_profile(tmp_path)
+    profile["user_data_dir"] = str(udd)
+    await bm.launch(profile)
+    assert not (udd / "SingletonLock").exists()
+    assert not (udd / "SingletonCookie").exists()
+    assert not (udd / "SingletonSocket").exists()
+
+
+@pytest.mark.asyncio
+async def test_browser_launch_error_propagates_when_probe_fails(bm, tmp_path, monkeypatch):
+    fake_ctx = MagicMock()
+    fake_ctx.add_init_script = AsyncMock()
+    fake_ctx.pages = []
+    fake_ctx.close = AsyncMock()
+    fake_ctx.on = MagicMock()
+    fake_ctx.new_page = AsyncMock(side_effect=Exception("crashed"))
+    monkeypatch.setattr(
+        "backend.browser_manager.launch_persistent_context_async",
+        AsyncMock(return_value=fake_ctx),
+    )
+    profile = _make_profile(tmp_path)
+    with pytest.raises(BrowserLaunchError, match="about:blank probe failed"):
+        await bm.launch(profile)
+    assert "p1" not in bm.running
+    assert "p1" not in bm._launching
+    fake_ctx.close.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_semaphore_timeout_raises_browser_launch_error(bm, tmp_path, monkeypatch):
+    bm._launch_sem = asyncio.Semaphore(0)
+    monkeypatch.setattr(BrowserManager, "LAUNCH_TIMEOUT_SECS", 0)
+    profile = _make_profile(tmp_path)
+    with pytest.raises(BrowserLaunchError, match="timed out waiting for launch slot"):
+        await bm.launch(profile)
+    assert "p1" not in bm._launching

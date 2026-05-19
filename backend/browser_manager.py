@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import logging
 import os
@@ -145,6 +146,15 @@ def _init_profile_defaults(user_data_dir: Path) -> None:
 BASE_CDP_PORT = 5100  # CDP ports: 5100, 5101, ... (parallels VNC 6100+)
 
 
+class BrowserLaunchError(RuntimeError):
+    """Raised when BrowserManager.launch() fails after acquiring the semaphore.
+
+    Surfaces in the routers/sessions.py POST /sessions handler as HTTP 503 with
+    a sanitized {detail: "Browser launch failed", reason: "<short>"} body
+    (CONTEXT.md D-16). Stack traces stay in logs only.
+    """
+
+
 @dataclass
 class RunningProfile:
     profile_id: str
@@ -152,14 +162,22 @@ class RunningProfile:
     display: int
     ws_port: int
     cdp_port: int
+    cdp_attach_count: int = 0
+    viewer_attach_count: int = 0
+    last_launched_at: datetime.datetime | None = None
+    idle_started_at: datetime.datetime | None = None
 
 
 class BrowserManager:
-    def __init__(self):
+    LAUNCH_TIMEOUT_SECS: int = 30
+    PROBE_TIMEOUT_MS: int = 5000
+
+    def __init__(self) -> None:
         self.running: dict[str, RunningProfile] = {}
         self._launching: set[str] = set()  # profile IDs currently being launched
         self.vnc = VNCManager()
         self._lock = asyncio.Lock()
+        self._launch_sem = asyncio.Semaphore(3)
 
     async def launch(self, profile: dict[str, Any]) -> RunningProfile:
         """Launch a browser instance for the given profile."""
@@ -169,6 +187,18 @@ class BrowserManager:
             if profile_id in self.running or profile_id in self._launching:
                 raise RuntimeError(f"Profile {profile_id} is already running")
             self._launching.add(profile_id)
+
+        try:
+            await asyncio.wait_for(
+                self._launch_sem.acquire(),
+                timeout=self.LAUNCH_TIMEOUT_SECS,
+            )
+        except asyncio.TimeoutError:
+            async with self._lock:
+                self._launching.discard(profile_id)
+            raise BrowserLaunchError(
+                f"timed out waiting for launch slot after {self.LAUNCH_TIMEOUT_SECS}s"
+            )
 
         display, ws_port = await self.vnc.allocate()
         cdp_port = BASE_CDP_PORT + (display - self.vnc.BASE_DISPLAY)
@@ -256,6 +286,8 @@ class BrowserManager:
                 except Exception as exc:
                     logger.debug("Clipboard init failed on existing page: %s", exc)
 
+            await self._probe_about_blank(context, profile_id)
+
             running = RunningProfile(
                 profile_id=profile_id,
                 context=context,
@@ -270,6 +302,7 @@ class BrowserManager:
             ))
 
             async with self._lock:
+                running.last_launched_at = datetime.datetime.now(datetime.timezone.utc)
                 self.running[profile_id] = running
                 self._launching.discard(profile_id)
 
@@ -286,6 +319,29 @@ class BrowserManager:
             # Clean up VNC if browser launch failed
             await self.vnc.stop_vnc(display)
             raise
+        finally:
+            self._launch_sem.release()
+
+    async def _probe_about_blank(self, context: Any, profile_id: str) -> None:
+        """Verify Chromium is alive after launch (SESS-10, Pitfall 13)."""
+        try:
+            page = await context.new_page()
+            try:
+                await page.goto("about:blank", timeout=self.PROBE_TIMEOUT_MS)
+            finally:
+                await page.close()
+        except Exception as exc:
+            logger.warning(
+                "about:blank probe failed for profile %s: %s: %s",
+                profile_id, type(exc).__name__, exc,
+            )
+            try:
+                await context.close()
+            except Exception as inner_exc:
+                logger.debug("post-probe context.close() failed: %s", inner_exc)
+            raise BrowserLaunchError(
+                f"about:blank probe failed: {type(exc).__name__}: {exc}"
+            ) from exc
 
     async def _on_browser_closed(self, profile_id: str):
         """Called when browser exits (crash, user closed via VNC, or stop())."""
@@ -296,12 +352,14 @@ class BrowserManager:
             logger.info("Browser closed for profile %s, cleaning up", profile_id)
             await self.vnc.stop_vnc(running.display)
 
-    async def stop(self, profile_id: str):
-        """Stop a running browser instance."""
-        # Pop before close so _on_browser_closed() finds nothing to clean up
+    async def stop(self, profile_id: str) -> None:
+        """Stop a running browser instance (public API — acquires _lock)."""
         async with self._lock:
-            running = self.running.pop(profile_id, None)
+            await self._stop_locked(profile_id)
 
+    async def _stop_locked(self, profile_id: str) -> None:
+        """Inner stop — caller MUST already hold self._lock."""
+        running = self.running.pop(profile_id, None)
         if not running:
             return
 
