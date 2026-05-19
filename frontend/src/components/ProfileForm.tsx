@@ -65,6 +65,7 @@ export function ProfileForm({ profile, onSave, onDelete, onCancel }: ProfileForm
     headless: false,
     geoip: false,
     clipboard_sync: false,
+    auto_launch: false,
     launch_args: [],
     tags: [],
   });
@@ -95,6 +96,7 @@ export function ProfileForm({ profile, onSave, onDelete, onCancel }: ProfileForm
         headless: profile.headless,
         geoip: profile.geoip,
         clipboard_sync: profile.clipboard_sync,
+        auto_launch: profile.auto_launch,
         color_scheme: profile.color_scheme,
         launch_args: profile.launch_args ?? [],
         notes: profile.notes,
@@ -442,6 +444,15 @@ export function ProfileForm({ profile, onSave, onDelete, onCancel }: ProfileForm
                 className="rounded border-border bg-surface-2"
               />
               Enable clipboard sync by default in VNC viewer
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.auto_launch ?? false}
+                onChange={(e) => set("auto_launch", e.target.checked)}
+                className="rounded border-border bg-surface-2"
+              />
+              Launch automatically when container starts
             </label>
             <div>
               <label className="label">Color Scheme</label>

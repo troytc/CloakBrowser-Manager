@@ -21,6 +21,7 @@ export interface Profile {
   headless: boolean;
   geoip: boolean;
   clipboard_sync: boolean;
+  auto_launch: boolean;
   color_scheme: string | null;
   launch_args: string[];
   notes: string | null;
@@ -51,6 +52,7 @@ export interface ProfileCreateData {
   headless?: boolean;
   geoip?: boolean;
   clipboard_sync?: boolean;
+  auto_launch?: boolean;
   color_scheme?: string | null;
   launch_args?: string[];
   notes?: string | null;

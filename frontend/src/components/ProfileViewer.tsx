@@ -216,6 +216,18 @@ export function ProfileViewer({ profileId, cdpUrl, clipboardSync: initialClipboa
     return () => document.removeEventListener("fullscreenchange", handleFsChange);
   }, []);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, []);
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">

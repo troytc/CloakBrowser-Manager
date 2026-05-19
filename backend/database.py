@@ -54,6 +54,7 @@ def init_db():
                 headless BOOLEAN DEFAULT 0,
                 geoip BOOLEAN DEFAULT 0,
                 clipboard_sync BOOLEAN DEFAULT 0,
+                auto_launch BOOLEAN DEFAULT 0,
                 color_scheme TEXT,
                 notes TEXT,
                 user_data_dir TEXT NOT NULL,
@@ -95,6 +96,9 @@ def init_db():
             conn.commit()
         if "launch_args" not in cols:
             conn.execute("ALTER TABLE profiles ADD COLUMN launch_args TEXT DEFAULT '[]'")
+            conn.commit()
+        if "auto_launch" not in cols:
+            conn.execute("ALTER TABLE profiles ADD COLUMN auto_launch BOOLEAN DEFAULT 0")
             conn.commit()
 
         # D-07: schema migration wipe — old dev/test schema lacks vendor_type column.
@@ -164,10 +168,10 @@ def create_profile(
                 id, name, fingerprint_seed, proxy, timezone, locale, platform,
                 user_agent, screen_width, screen_height, gpu_vendor, gpu_renderer,
                 hardware_concurrency, humanize, human_preset, headless, geoip,
-                clipboard_sync, color_scheme, launch_args, notes,
+                clipboard_sync, auto_launch, color_scheme, launch_args, notes,
                 user_data_dir, created_at, updated_at,
                 vendor_type, vendor_connection_id, template_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 profile_id, name, seed,
                 fields.get("proxy"),
@@ -185,6 +189,7 @@ def create_profile(
                 fields.get("headless", False),
                 fields.get("geoip", False),
                 fields.get("clipboard_sync", False),
+                fields.get("auto_launch", False),
                 fields.get("color_scheme"),
                 json.dumps(fields.get("launch_args") or []),
                 fields.get("notes"),
@@ -253,7 +258,7 @@ def update_profile(profile_id: str, **fields: Any) -> dict[str, Any] | None:
         "name", "fingerprint_seed", "proxy", "timezone", "locale", "platform",
         "user_agent", "screen_width", "screen_height", "gpu_vendor", "gpu_renderer",
         "hardware_concurrency", "humanize", "human_preset", "headless", "geoip",
-        "clipboard_sync", "color_scheme", "launch_args", "notes",
+        "clipboard_sync", "auto_launch", "color_scheme", "launch_args", "notes",
     ):
         if col in fields:
             update_cols.append(f"{col} = ?")

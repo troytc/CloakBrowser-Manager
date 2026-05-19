@@ -9,7 +9,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import socket
+
 from backend.browser_manager import (
+    BASE_CDP_PORT,
+    CDP_PORT_RANGE,
     BrowserLaunchError,
     BrowserManager,
     RunningProfile,
@@ -174,6 +178,58 @@ def test_launch_args_none_no_effect():
     base_count = len(args)
     args += profile.get("launch_args") or []
     assert len(args) == base_count
+
+
+# ── _allocate_cdp_port ───────────────────────────────────────────────────────
+
+
+def test_allocate_cdp_port_returns_free_port():
+    mgr = BrowserManager()
+    port = mgr._allocate_cdp_port()
+    assert BASE_CDP_PORT <= port < BASE_CDP_PORT + CDP_PORT_RANGE
+
+
+def test_allocate_cdp_port_skips_occupied():
+    mgr = BrowserManager()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        blocker.bind(("127.0.0.1", BASE_CDP_PORT))
+        blocker.listen(1)
+        port = mgr._allocate_cdp_port()
+        assert port == BASE_CDP_PORT + 1
+
+
+def test_allocate_cdp_port_advances_counter():
+    mgr = BrowserManager()
+    p1 = mgr._allocate_cdp_port()
+    p2 = mgr._allocate_cdp_port()
+    assert p2 == p1 + 1
+
+
+def test_allocate_cdp_port_wraps_around():
+    mgr = BrowserManager()
+    mgr._next_cdp_port = BASE_CDP_PORT + CDP_PORT_RANGE - 1
+    p1 = mgr._allocate_cdp_port()
+    assert p1 == BASE_CDP_PORT + CDP_PORT_RANGE - 1
+    p2 = mgr._allocate_cdp_port()
+    assert p2 == BASE_CDP_PORT
+
+
+def test_allocate_cdp_port_all_occupied_raises():
+    mgr = BrowserManager()
+    blockers = []
+    try:
+        for i in range(CDP_PORT_RANGE):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", BASE_CDP_PORT + i))
+            s.listen(1)
+            blockers.append(s)
+        with pytest.raises(ValueError, match="No free CDP ports"):
+            mgr._allocate_cdp_port()
+    finally:
+        for s in blockers:
+            s.close()
 
 
 # ── _init_profile_defaults ───────────────────────────────────────────────────

@@ -106,6 +106,8 @@ def mock_browser_manager(monkeypatch):
     bm._stop_locked = AsyncMock()
     bm.cleanup_stale = AsyncMock()
     bm.cleanup_all = AsyncMock()
+    bm.auto_launch_all = AsyncMock()
+    bm._auto_launch_task = None
     bm.vnc = MagicMock()
     bm.vnc.cleanup_stale = AsyncMock()
 

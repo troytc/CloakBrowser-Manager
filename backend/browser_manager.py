@@ -143,7 +143,8 @@ def _init_profile_defaults(user_data_dir: Path) -> None:
         logger.info("Set DuckDuckGo as default search for %s", user_data_dir.name)
 
 
-BASE_CDP_PORT = 5100  # CDP ports: 5100, 5101, ... (parallels VNC 6100+)
+BASE_CDP_PORT = 5100
+CDP_PORT_RANGE = 100  # cycle through 5100-5199 to avoid TIME_WAIT collisions
 
 
 class BrowserLaunchError(RuntimeError):
@@ -178,6 +179,8 @@ class BrowserManager:
         self.vnc = VNCManager()
         self._lock = asyncio.Lock()
         self._launch_sem = asyncio.Semaphore(3)
+        self._next_cdp_port = BASE_CDP_PORT
+        self._auto_launch_task: asyncio.Task | None = None
 
     async def launch(self, profile: dict[str, Any]) -> RunningProfile:
         """Launch a browser instance for the given profile."""
@@ -201,17 +204,14 @@ class BrowserManager:
             )
 
         display, ws_port = await self.vnc.allocate()
-        cdp_port = BASE_CDP_PORT + (display - self.vnc.BASE_DISPLAY)
 
-        # Verify CDP port is available before launching Chrome on it
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(("127.0.0.1", cdp_port))
-            except OSError:
-                async with self._lock:
-                    self._launching.discard(profile_id)
-                await self.vnc.stop_vnc(display)
-                raise ValueError(f"CDP port {cdp_port} is already in use")
+        try:
+            cdp_port = self._allocate_cdp_port()
+        except ValueError:
+            async with self._lock:
+                self._launching.discard(profile_id)
+            await self.vnc.stop_vnc(display)
+            raise
 
         # Clean stale Chromium lock files (left by previous container crashes)
         user_data_dir = Path(profile["user_data_dir"])
@@ -313,10 +313,9 @@ class BrowserManager:
 
             return running
 
-        except Exception:
+        except BaseException:
             async with self._lock:
                 self._launching.discard(profile_id)
-            # Clean up VNC if browser launch failed
             await self.vnc.stop_vnc(display)
             raise
         finally:
@@ -397,6 +396,43 @@ class BrowserManager:
     async def cleanup_stale(self):
         """Kill orphan processes from previous container runs."""
         await self.vnc.cleanup_stale()
+
+    async def auto_launch_all(self):
+        """Launch all profiles with auto_launch=True. Called on startup."""
+        from . import database as db
+
+        profiles = db.list_profiles()
+        auto_profiles = [p for p in profiles if p.get("auto_launch")]
+        if not auto_profiles:
+            logger.info("No profiles configured for auto-launch")
+            return
+
+        logger.info("Auto-launching %d profile(s)...", len(auto_profiles))
+        for profile in auto_profiles:
+            try:
+                await asyncio.wait_for(self.launch(profile), timeout=60)
+                logger.info("Auto-launched profile %s (%s)", profile["name"], profile["id"])
+            except Exception as exc:
+                logger.error(
+                    "Auto-launch failed for profile %s (%s): %s",
+                    profile["name"], profile["id"], exc,
+                )
+        logger.info("Auto-launch complete: %d running", len(self.running))
+
+    def _allocate_cdp_port(self) -> int:
+        """Find a free CDP port using a rotating counter to avoid TIME_WAIT collisions."""
+        for _ in range(CDP_PORT_RANGE):
+            port = self._next_cdp_port
+            self._next_cdp_port = BASE_CDP_PORT + (
+                (self._next_cdp_port + 1 - BASE_CDP_PORT) % CDP_PORT_RANGE
+            )
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(("127.0.0.1", port))
+                    return port
+                except OSError:
+                    continue
+        raise ValueError("No free CDP ports available in range %d-%d" % (BASE_CDP_PORT, BASE_CDP_PORT + CDP_PORT_RANGE - 1))
 
     def _build_fingerprint_args(self, profile: dict[str, Any]) -> list[str]:
         """Build extra Chromium args from profile fingerprint settings."""

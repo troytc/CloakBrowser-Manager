@@ -409,7 +409,10 @@ def _rewrite_pointer_event(data: bytes, offset: int) -> bytes:
     mask = data[offset + 1]
     x = struct.unpack_from(">H", data, offset + 2)[0]
     y = struct.unpack_from(">H", data, offset + 4)[0]
-    # Expand mask from u8 to u16, add zero scroll deltas
+    # Expand mask from u8 to u16.  Scroll deltas (sx, sy) are zero because
+    # noVNC encodes scroll as button-mask bits (3=up, 4=down, 5=left, 6=right)
+    # which pass through in the mask.  KasmVNC accepts mask-bit scroll on its
+    # extended 11-byte format, so explicit deltas are unnecessary.
     return struct.pack(">BHHHhh", 5, mask, x, y, 0, 0)
 
 
@@ -460,16 +463,16 @@ async def lifespan(app: FastAPI):
     _check_required_env()           # fail-closed before DB init / browser setup (SEC-05/SEC-06)
     db.init_db()
     await browser_mgr.cleanup_stale()
-    # Phase 2 (CONTEXT.md D-01): SessionManager singleton on app.state.
-    # Routes resolve via Depends(get_session_manager) -> request.app.state.session_manager.
     app.state.session_manager = SessionManager(browser_mgr=browser_mgr)
+    browser_mgr._auto_launch_task = asyncio.create_task(browser_mgr.auto_launch_all())
     logger.info("VendorBrowser started")
     yield
     logger.info("Shutting down — cancelling idle timers and stopping all browsers...")
-    # Phase 2 (CONTEXT.md D-08, RESEARCH §8): drain idle timers BEFORE
-    # cleanup_all so they don't fire mid-shutdown on closed contexts.
     sm: SessionManager = app.state.session_manager
     await sm.shutdown()
+    if browser_mgr._auto_launch_task and not browser_mgr._auto_launch_task.done():
+        browser_mgr._auto_launch_task.cancel()
+        await asyncio.gather(browser_mgr._auto_launch_task, return_exceptions=True)
     await browser_mgr.cleanup_all()
 
 
