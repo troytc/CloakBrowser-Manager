@@ -5,8 +5,8 @@
 <h3 align="center">VendorBrowser — powered by CloakBrowser</h3>
 
 <p align="center">
-Create, manage, and launch isolated browser profiles with unique fingerprints.<br>
-Free, self-hosted alternative to Multilogin, GoLogin, and AdsPower.
+Single-host browser profile service for one downstream app.<br>
+Warm-pooled Chromium, vendor templates, CDP automation, and signed iframe viewers.
 </p>
 
 <p align="center">
@@ -17,283 +17,312 @@ Free, self-hosted alternative to Multilogin, GoLogin, and AdsPower.
 
 ---
 
-<p align="center">
-<img src="https://i.imgur.com/twdX81Q.png" width="800" alt="VendorBrowser — Browser View">
-<br>
-<img src="https://i.imgur.com/XFYn1qY.png" width="800" alt="VendorBrowser — Profile Settings">
-</p>
+VendorBrowser manages **one durable Chromium profile per `(vendor_type, vendor_connection_id)`**. Each profile inherits a **vendor template** (fingerprint, locale, timezone, launch flags) and keeps cookies and storage on disk across warm-pool sleep/wake cycles.
 
-Each profile is an isolated CloakBrowser instance with its own fingerprint, proxy, cookies, and session data. Profiles persist across restarts. Everything runs in one Docker container.
+Your **Main App** (single trusted consumer) calls:
 
-```bash
-docker run -p 8080:8080 -v vendorprofiles:/data nowkickback/vendorbrowser
+```http
+POST /sessions
+X-API-Key: <MAIN_APP_API_KEY>
+
+{"vendor_type": "acme_portal", "vendor_connection_id": "conn_abc123"}
 ```
 
-Or build from source:
+and receives a **CDP URL** for Playwright automation plus a **signed `vnc_viewer_url`** to embed for human login / 2FA.
+
+Operators use the **admin dashboard** to define vendor templates and inspect running sessions. End users never touch VendorBrowser directly — they only see the iframe inside your product.
+
+Full integration guide for implementers: **[docs/MAIN_APP_INTEGRATION.md](docs/MAIN_APP_INTEGRATION.md)**.
+
+---
+
+## Quick start (Docker)
 
 ```bash
-git clone https://github.com/nowkickback/VendorBrowser.git
-cd VendorBrowser
+cp .env.example .env
+# Edit .env: set MAIN_APP_API_KEY, VIEWER_SECRET, MAIN_APP_ORIGIN, AUTH_TOKEN
+
 docker compose up --build
 ```
 
-Open [http://localhost:8080](http://localhost:8080) in your browser. Create a profile. Click Launch. Done.
+- **Admin UI:** [http://localhost:8080](http://localhost:8080) (login if `AUTH_TOKEN` is set)
+- **Data:** `~/.vendorbrowser` on the host → `/data` in the container (SQLite + profile dirs)
 
-> **Early alpha** — this project is under active development. Expect bugs. If you find one, please [open an issue](https://github.com/nowkickback/VendorBrowser/issues).
+Production image:
 
-## Why Not Just Use a VPN?
+```bash
+docker pull nowkickback/vendorbrowser:latest
 
-A VPN only changes your IP. Incognito only clears cookies. Chrome profiles share the same hardware fingerprint underneath. Platforms use 50+ signals to link your accounts — canvas, WebGL, audio, GPU, fonts, screen size, timezone.
+docker run -d --name vendorbrowser \
+  -p 8080:8080 \
+  -v vendorbrowser-data:/data \
+  -e MAIN_APP_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
+  -e VIEWER_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+  -e MAIN_APP_ORIGIN=https://your-main-app.example.com \
+  -e AUTH_TOKEN=your-admin-token \
+  nowkickback/vendorbrowser:latest
+```
 
-Each CloakBrowser profile generates a completely different device identity. To the website, each profile looks like a different computer.
+The service **refuses to start** without `MAIN_APP_API_KEY` and `VIEWER_SECRET` unless `DEV_MODE=1` (local dev only).
 
-| Solution | What it changes | Accounts linked? |
-|----------|----------------|-----------------|
-| VPN | IP address only | Yes — same fingerprint |
-| Incognito | Clears cookies | Yes — same fingerprint |
-| Chrome profiles | Separate bookmarks/cookies | Yes — same hardware fingerprint |
-| **CloakBrowser** | **Everything — full device identity per profile** | **No** |
+---
 
-## Features
+## How it fits together
 
-- **Profile management** — create, edit, delete browser profiles with unique fingerprints
-- **Per-profile settings** — fingerprint seed, proxy, timezone, locale, user agent, screen size, platform
-- **One-click launch/stop** — each profile runs as an isolated CloakBrowser instance
-- **Session persistence** — cookies, localStorage, and cache survive browser restarts
-- **In-browser viewing** — interact with launched browsers via noVNC, directly in the web GUI
-- **Playwright/Puppeteer API** — connect to any running profile programmatically via CDP, while still watching it live in the browser
-- **Optional authentication** — protect the web UI and API with a single token, or run wide open locally
-- **Powered by CloakBrowser** — 32 source-level C++ patches, passes Cloudflare Turnstile, 0.9 reCAPTCHA v3 score
+```mermaid
+flowchart LR
+  subgraph main [Main App]
+    API[Backend]
+    UI[Your UI]
+  end
+  subgraph vb [VendorBrowser]
+  T[Templates admin]
+  S[POST /sessions]
+  CDP[CDP proxy]
+  V[Signed viewer]
+  end
+  API -->|X-API-Key| S
+  S --> CDP
+  S --> V
+  UI -->|iframe #token=| V
+  API -->|Playwright| CDP
+  T -.->|snapshot| S
+```
+
+| Role | What they do |
+|------|----------------|
+| **Operator** | Create/edit **vendor templates** per `vendor_type` in the admin UI |
+| **Main App backend** | `POST /sessions`, CDP automation, optional `GET/DELETE` session & profile APIs |
+| **End user** | Completes vendor login in your app via embedded **viewer iframe** |
+
+---
+
+## Features (v1.0)
+
+### Vendor templates
+
+- Admin CRUD for templates keyed by `vendor_type` (fingerprint, proxy, locale, timezone, platform, screen, GPU, humanize, `launch_args`, `clipboard_sync`)
+- Template fields are **snapshot-copied** into each profile at creation; editing a template does not change existing profiles
+- `clipboard_sync` defaults to **false** everywhere
+
+### Sessions & warm pool
+
+- **Idempotent** `POST /sessions` — one profile per `(vendor_type, vendor_connection_id)`
+- Browser stays up while **CDP** or **viewer** is attached; sleeps after `IDLE_TIMEOUT_SECONDS` (default 600s) when both are detached
+- Launch guarded by `asyncio.Semaphore(3)`; stale Chromium singleton files cleaned before launch
+- `about:blank` probe after launch to detect silent failures
+- `GET /sessions/{profile_id}` for attach counts and idle expiry; `DELETE /sessions/{profile_id}` to force-stop without deleting data
+
+### Signed viewer (iframe)
+
+- Short-lived HS256 JWT in URL **fragment** only: `/viewer/{profile_id}#token=…` (never querystring)
+- Single-use JTI on WebSocket connect; CSP `frame-ancestors` restricted to `MAIN_APP_ORIGIN`
+- External embed script (no inline JS) for strict CSP
+
+### Machine API (`/profiles`)
+
+- Lookup by `vendor_type` + `vendor_connection_id`
+- Notes-only `PATCH`; `DELETE` removes row and on-disk profile directory
+- All machine routes require `X-API-Key` — separate from admin auth
+
+### Admin dashboard
+
+- **Templates** — configure vendors
+- **Sessions** — ops list (`vendor_type`, connection id, state, attach counts, idle timer)
+- Open **admin VNC** for running/idle sessions (warm-pool aware)
+- Legacy end-user profile CRUD and Launch/Stop removed (**410**)
+
+### Security
+
+- **Two auth surfaces:** `X-API-Key` on `/sessions`, `/profiles`, CDP WebSocket vs admin bearer/cookie on `/api/*`
+- Machine route cannot read clipboard without viewer token
+- Admin API responses: `frame-ancestors 'none'`; admin cookie `SameSite=Strict`, `HttpOnly`
+
+---
+
+## API overview
+
+**Base URL:** your VendorBrowser host (e.g. `https://browser.internal`)
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/sessions` | `X-API-Key` | Upsert + wake; returns `profile_id`, `cdp_url`, `vnc_viewer_url`, `state` |
+| `GET` | `/sessions/{profile_id}` | `X-API-Key` | Status envelope |
+| `DELETE` | `/sessions/{profile_id}` | `X-API-Key` | Stop browser; keep profile data |
+| `GET` | `/profiles?...` | `X-API-Key` | List/filter profiles |
+| `DELETE` | `/profiles/{profile_id}` | `X-API-Key` | Delete profile + disk |
+| `GET` | `/viewer/{profile_id}` | JWT in `#token=` | iframe shell (embed in Main App) |
+| WS | `/api/profiles/{id}/cdp` | `X-API-Key` on upgrade | Playwright CDP proxy |
+
+**CDP example** (from Main App backend):
+
+```python
+from playwright.async_api import async_playwright
+
+BASE = "https://browser.internal"
+API_KEY = "..."  # MAIN_APP_API_KEY — never expose to browsers
+
+async with async_playwright() as pw:
+    browser = await pw.chromium.connect_over_cdp(
+        f"{BASE}/api/profiles/{profile_id}/cdp",
+        headers={"X-API-Key": API_KEY},
+    )
+    page = browser.contexts[0].pages[0]
+    await page.goto("https://vendor.example.com")
+    await browser.close()
+```
+
+See **[docs/MAIN_APP_INTEGRATION.md](docs/MAIN_APP_INTEGRATION.md)** for flows (new account connect, 2FA iframe, disconnect, errors).
+
+---
+
+## Environment variables
+
+Copy [`.env.example`](.env.example) → `.env`.
+
+| Variable | Required (prod) | Description |
+|----------|-----------------|-------------|
+| `MAIN_APP_API_KEY` | Yes | Shared secret; `X-API-Key` on machine routes |
+| `VIEWER_SECRET` | Yes | HMAC secret for viewer JWTs (HS256) |
+| `MAIN_APP_ORIGIN` | Yes* | Origin allowed to embed `/viewer/*` (e.g. `https://app.example.com`) |
+| `AUTH_TOKEN` | Recommended | Admin dashboard + `/api/*` bearer/cookie |
+| `IDLE_TIMEOUT_SECONDS` | No | Warm-pool idle before stop (default `600`) |
+| `VIEWER_TOKEN_TTL_SECS` | No | Viewer JWT TTL (default `300`) |
+| `CHROME_UID` | No | `chown` target for `/data/profiles` (default `0`) |
+| `DEV_MODE` | No | `1` = skip fail-closed check for missing secrets (**dev only**) |
+
+\*Required for iframe embedding in production; unset limits `frame-ancestors` to `'self'`.
+
+---
 
 ## Stack
 
-- **Backend**: FastAPI (Python)
-- **Frontend**: React + Tailwind CSS
-- **Browser viewer**: noVNC (WebSocket-based VNC client)
-- **Database**: SQLite
-- **Browser engine**: [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) (stealth Chromium binary)
+| Layer | Technology |
+|-------|------------|
+| API | Python 3.12, FastAPI, Pydantic 2, SQLite |
+| Admin UI | React 19, TypeScript, Vite, Tailwind |
+| Browser | [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) + Playwright |
+| Viewer | KasmVNC + noVNC 1.4, custom RFB filter |
+| Tokens | PyJWT ≥ 2.12 |
+
+---
 
 ## Development
 
 ### Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|--------|
-| Python | 3.11+ (3.12 in Docker) | Backend API and tests |
-| Node.js | 20+ | Frontend dev server and build |
-| Docker | 20.10+ | **Recommended** for running Chromium, KasmVNC, and noVNC together |
+| Tool | Version |
+|------|---------|
+| Docker | 20.10+ (recommended — includes Chromium + VNC) |
+| Python | 3.11+ (3.12 in image) |
+| Node.js | 20+ |
 
-The API stores profiles under `/data` (SQLite + Chromium user-data dirs). Docker maps that to `~/.vendorbrowser` on the host. Native runs need a writable `/data` (see [Native backend](#native-backend) below).
-
-### Environment
-
-Copy the example env file and edit it for local work:
+### Docker Compose (full stack)
 
 ```bash
 cp .env.example .env
-```
+# DEV_MODE=1 is fine for local API-only experiments
 
-| Variable | Local dev |
-|----------|-----------|
-| `DEV_MODE=1` | Lets the API start without `MAIN_APP_API_KEY` / `VIEWER_SECRET` (logs a warning). Use only on your machine. |
-| `AUTH_TOKEN` | Optional. If set, the admin dashboard and `/api/*` (except health/auth) require this token. |
-| `MAIN_APP_API_KEY` | Required for machine routes (`/sessions/*`, `/profiles/*`) unless `DEV_MODE=1`. |
-| `VIEWER_SECRET` | Required for signed viewer URLs unless `DEV_MODE=1`. |
-| `MAIN_APP_ORIGIN` | CSP `frame-ancestors` for `/viewer/*`. Use `http://localhost:5173` when using the Vite dev server. |
-
-Docker Compose reads `.env` from the repo root automatically. For a native shell, export variables before starting uvicorn:
-
-```bash
-set -a && source .env && set +a
-```
-
-### Recommended: Docker Compose
-
-Runs the full stack (API, built dashboard, CloakBrowser, VNC) the same way production does:
-
-```bash
 docker compose up --build
 ```
 
-- Dashboard: [http://localhost:8080](http://localhost:8080)
-- Data volume: `~/.vendorbrowser` → `/data` inside the container
-- Override secrets and flags via `.env` (see [Environment](#environment))
+### Split stack (UI hot reload)
 
-Rebuild after backend or frontend changes:
-
-```bash
-docker compose up --build
-```
-
-### Split-stack dev (hot-reload UI)
-
-Best when you are changing React code. The Vite dev server proxies `/api` to the backend on port 8080.
-
-**Terminal 1 — API**
+**API** (from `backend/`):
 
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-set -a && source ../.env && set +a   # from repo root .env
+set -a && source ../.env && set +a
 uvicorn asgi:app --reload --port 8080
 ```
 
-Run from `backend/` so Python loads `asgi.py`, which imports `backend.main:app` with the correct package path. Do **not** use `uvicorn main:app` — that breaks relative imports on reload.
-
-Equivalent from the **repo root** (same module path as Docker):
+**Frontend:**
 
 ```bash
-cd /path/to/CloakBrowser-Manager
-source backend/.venv/bin/activate
-set -a && source .env && set +a
-uvicorn backend.main:app --reload --port 8080
+cd frontend && npm install && npm run dev
 ```
 
-**Terminal 2 — frontend**
+UI: [http://localhost:5173](http://localhost:5173) — set `MAIN_APP_ORIGIN=http://localhost:5173` if testing viewer iframes.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-- UI: [http://localhost:5173](http://localhost:5173) (Vite; `/api` → `http://localhost:8080`)
-- Set `MAIN_APP_ORIGIN=http://localhost:5173` in `.env` if you exercise signed viewer iframes locally.
-
-**Limitation:** launching profiles and live VNC still need CloakBrowser, KasmVNC, and system libraries. For end-to-end browser work, use [Docker Compose](#recommended-docker-compose) or a Linux host with the same dependencies as the [Dockerfile](Dockerfile).
-
-### Native backend
-
-If you run the API outside Docker:
-
-1. **Data directory** — the app writes to `/data`:
-
-   ```bash
-   sudo mkdir -p /data && sudo chown "$USER" /data
-   ```
-
-2. **Dependencies** — `pip install -r backend/requirements.txt` (includes `cloakbrowser[geoip]`). The CloakBrowser binary is downloaded on first launch.
-
-3. **VNC stack** — profile viewing expects KasmVNC (installed in the Docker image). Without it, API and dashboard development still work; in-browser VNC will not.
-
-4. **Serve the built dashboard from the API** (optional, single port):
-
-   ```bash
-   cd frontend && npm install && npm run build
-   cd ../backend && uvicorn asgi:app --reload --port 8080
-   ```
-
-   Open [http://localhost:8080](http://localhost:8080) when `frontend/dist` exists.
+Browser launch and VNC require Docker or a Linux host with the same deps as the [Dockerfile](Dockerfile).
 
 ### Tests
 
-From the **repo root** (uses `pyproject.toml`):
+From repo root:
 
 ```bash
-# Backend (fast suite; excludes slow Chromium e2e by default)
 pip install -r backend/requirements.txt pytest
-pytest
+pytest                    # fast suite (281 tests)
+pytest -m slow            # real Chromium sleep/wake e2e
 
-# Slow warm-pool e2e (real browser + VNC; Docker or full native deps)
-pytest -m slow
-
-# Frontend
-cd frontend && npm test
+cd frontend && npm test   # 10 tests
 ```
 
-## Requirements
+---
 
-- Docker (20.10+)
-- ~2 GB disk (image + binary)
-- ~512 MB RAM per running profile
+## CI & Docker images
 
-## Updating
+GitHub Actions builds multi-arch (`linux/amd64`, `linux/arm64`) images and pushes to Docker Hub on pushes to `main` and on version tags (`v*`).
 
-Pull the latest image and restart:
+| Event | Image tags |
+|-------|------------|
+| Push to `main` | `nowkickback/vendorbrowser:latest`, `nowkickback/vendorbrowser:sha-<short>` |
+| Tag `v1.0.0` | `nowkickback/vendorbrowser:1.0.0`, `1.0`, `1`, `latest` |
 
-```bash
-docker pull nowkickback/vendorbrowser
-docker stop <container-id>
-docker run -p 8080:8080 -v vendorprofiles:/data nowkickback/vendorbrowser
-```
+**Repo secrets required** (Settings → Secrets → Actions):
 
-Your profiles and session data are stored in the `vendorprofiles` volume and persist across updates.
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN` (Docker Hub access token with push access)
 
-## Automation API
+Pull requests run **build only** (no push).
 
-Every running profile exposes a CDP (Chrome DevTools Protocol) endpoint. Connect Playwright or Puppeteer to automate a profile while watching it live in the browser.
+Workflow: [`.github/workflows/docker.yml`](.github/workflows/docker.yml)
 
-```python
-from playwright.async_api import async_playwright
+---
 
-async with async_playwright() as pw:
-    browser = await pw.chromium.connect_over_cdp(
-        "http://localhost:8080/api/profiles/<profile-id>/cdp"
-    )
-    page = browser.contexts[0].pages[0]
-    await page.goto("https://example.com")
-```
+## Operations
 
-```javascript
-const { chromium } = require("playwright");
+| Resource | Guidance |
+|----------|----------|
+| **RAM** | ~512 MB per running profile (order of magnitude) |
+| **Disk** | `/data` volume — profiles + SQLite; back up the volume |
+| **Updates** | `docker pull nowkickback/vendorbrowser:latest` and recreate container; data persists on the volume |
+| **Remote access** | Bind behind VPN or `ssh -L 8080:localhost:8080 host`; use HTTPS in production |
+| **Templates** | Create each `vendor_type` in admin **before** Main App users connect |
 
-const browser = await chromium.connectOverCDP(
-  "http://localhost:8080/api/profiles/<profile-id>/cdp"
-);
-const page = browser.contexts()[0].pages()[0];
-await page.goto("https://example.com");
-```
+---
 
-The CDP URL is available in the toolbar (code icon) when a profile is running. The same browser session is accessible both visually through VNC and programmatically through the API.
+## Authentication summary
 
-## Remote Access
+| Surface | Credential |
+|---------|------------|
+| Machine API `/sessions`, `/profiles` | Header `X-API-Key: <MAIN_APP_API_KEY>` |
+| CDP WebSocket | `X-API-Key` on upgrade |
+| Viewer `/viewer/*` | JWT in URL fragment (minted by VendorBrowser) |
+| Admin `/api/*` + dashboard | `AUTH_TOKEN` bearer or cookie |
 
-The container binds to localhost only. To access from a remote server:
+Use HTTPS in production. Do not expose `MAIN_APP_API_KEY` to browsers.
 
-```bash
-ssh -L 8080:localhost:8080 your-server
-```
+---
 
-Then open `http://localhost:8080`.
+## Planning & architecture notes
 
-## Authentication
+Internal GSD planning artifacts live in [`.planning/`](.planning/) (roadmap, v1.0 milestone archive). Contributor-oriented invariants: [`CLAUDE.md`](CLAUDE.md).
 
-By default, there is no authentication (ideal for local use). To protect the web UI and API when hosting on a network, set the `AUTH_TOKEN` environment variable:
-
-```bash
-docker run -p 8080:8080 -v vendorprofiles:/data -e AUTH_TOKEN=your-secret-token nowkickback/vendorbrowser
-```
-
-Or in `docker-compose.yml`:
-
-```yaml
-environment:
-  - AUTH_TOKEN=your-secret-token
-```
-
-When `AUTH_TOKEN` is set:
-
-- The web UI shows a login page. Enter the token to unlock.
-- API consumers pass the token via `Authorization: Bearer <token>` header.
-- VNC WebSocket connections are authenticated via the login cookie.
-- The `/api/status` endpoint remains unauthenticated (for Docker healthcheck).
-
-> **Note**: The auth token is transmitted in cleartext over HTTP. If you expose VendorBrowser to the internet, put it behind a reverse proxy with HTTPS (Caddy, nginx, Traefik).
+---
 
 ## License
 
-- **This application** (GUI source code) — MIT. See [LICENSE](LICENSE).
-- **CloakBrowser binary** (compiled Chromium) — free to use, no redistribution. See [BINARY-LICENSE.md](BINARY-LICENSE.md).
+- **Application source** — MIT ([LICENSE](LICENSE))
+- **CloakBrowser binary** — separate terms ([BINARY-LICENSE.md](BINARY-LICENSE.md)); downloaded on first launch
 
-The GUI application requires the CloakBrowser Chromium binary to function. The binary is automatically downloaded on first launch and is governed by its own license terms. If you fork or redistribute this application, your users must comply with the [CloakBrowser Binary License](BINARY-LICENSE.md).
-
-## Contributing
-
-Contributions are welcome. Please [open an issue](https://github.com/nowkickback/VendorBrowser/issues) first to discuss what you'd like to change.
+---
 
 ## Links
 
-- **CloakBrowser** (browser engine) — [github.com/CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser)
-- **CloakBrowser website** — [cloakbrowser.dev](https://cloakbrowser.dev)
-- **Bug reports** — [GitHub Issues](https://github.com/nowkickback/VendorBrowser/issues)
+- **Main App integration** — [docs/MAIN_APP_INTEGRATION.md](docs/MAIN_APP_INTEGRATION.md)
+- **CloakBrowser** — [github.com/CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser)
+- **Docker Hub** — [hub.docker.com/r/nowkickback/vendorbrowser](https://hub.docker.com/r/nowkickback/vendorbrowser)
+- **Issues** — [github.com/CloakHQ/CloakBrowser-Manager/issues](https://github.com/CloakHQ/CloakBrowser-Manager/issues)
