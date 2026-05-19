@@ -12,115 +12,104 @@ The Main App uses it as infrastructure to programmatically log into vendor porta
 
 If everything else fails, that one call — `POST /sessions` with `(vendor_type, vendor_connection_id)` — must work.
 
+## Current State (v1.0 shipped 2026-05-19)
+
+- Machine API: `POST/GET/DELETE /sessions`, `GET/PATCH/DELETE /profiles` with `X-API-Key` auth
+- Signed viewer: `/viewer/{profile_id}#token=…` with JWT + JTI single-use, CSP, external embed script
+- Admin: templates CRUD, `GET /api/admin/sessions`, admin VNC + clipboard for ops (warm-pool aware)
+- Legacy admin profile CRUD and launch/stop return **410**; dashboard is sessions + templates only
+- Tests: 281 backend (pytest), 10 frontend (vitest); slow Chromium e2e behind `pytest -m slow`
+
+## Next Milestone Goals
+
+Define via `/gsd-new-milestone`. Likely candidates from v2 backlog: keepalive heartbeat (SAFE-01), read-only viewer mode (SAFE-02), per-template idle timeout (SAFE-03), template soft-disable (GOV-01).
+
 ## Requirements
 
 ### Validated
 
-<!-- Capabilities already in the existing codebase, confirmed by the codebase map (2026-04-22). These are the foundation v1 builds on; changing them is a breaking change. -->
+**Pre-v1 baseline (brownfield):**
 
-- ✓ Launch and stop Chromium profiles via CloakBrowser + Playwright — existing
-- ✓ Per-profile configuration of fingerprint seed, proxy, timezone, locale, platform, screen dims, GPU, humanize, launch_args, clipboard_sync — existing
-- ✓ Persistent profile storage in SQLite — existing
-- ✓ VNC streaming over WebSocket with KasmVNC + noVNC, including RFB protocol filtering and PointerEvent expansion — existing
-- ✓ CSWSH-protected WebSocket VNC proxy with origin checking — existing
-- ✓ Clipboard read/write bridge between browser and host — existing
-- ✓ React admin dashboard for profile CRUD and live VNC viewing — existing
-- ✓ Bearer-token / auth-cookie admin authentication — existing
-- ✓ Docker single-host deployment (x86_64 + ARM64) — existing
+- ✓ Launch and stop Chromium profiles via CloakBrowser + Playwright
+- ✓ Per-profile fingerprint, proxy, locale, timezone, platform, screen, GPU, humanize, launch_args, clipboard_sync
+- ✓ Persistent profile storage in SQLite
+- ✓ VNC streaming (KasmVNC + noVNC + RFB filter)
+- ✓ CSWSH-protected WebSocket VNC proxy
+- ✓ Clipboard read/write bridge
+- ✓ React admin dashboard shell + bearer/cookie admin auth
+- ✓ Docker single-host deployment (x86_64 + ARM64)
+
+**v1.0 milestone:**
+
+- ✓ Vendor templates CRUD keyed by `vendor_type` with snapshot profiles — v1.0
+- ✓ `POST /sessions` idempotent upsert + warm-pool wake — v1.0
+- ✓ Dual attach-count idle detection + `SessionManager` — v1.0
+- ✓ Machine `/profiles` API + API-key auth segregation — v1.0
+- ✓ Signed `vnc_viewer_url` (fragment token, HS256, JTI) — v1.0
+- ✓ CSP hardening (viewer `frame-ancestors`, admin `none`) — v1.0
+- ✓ Admin ops dashboard (sessions list, templates, admin VNC) — v1.0
+- ✓ Legacy `/api/profiles` CRUD/launch removed (410) — v1.0
+- ✓ `clipboard_sync` defaults false; viewer-token-only machine clipboard — v1.0
+- ✓ Production fail-closed without `MAIN_APP_API_KEY` / `VIEWER_SECRET` — v1.0
 
 ### Active
 
-<!-- v1 scope for the refocus. All hypotheses until shipped. -->
-
-- [ ] Vendor Template entity: CRUD model that locks a full blueprint (fingerprint rules, timezone, locale, platform, screen dims, launch_args, humanize, clipboard_sync) keyed by `vendor_type`
-- [ ] Admin UI screens in the existing dashboard for creating/editing/deleting vendor templates
-- [ ] Profile identity model: `(vendor_type, vendor_connection_id)` — unique per pair, created by inheriting the vendor template
-- [ ] `POST /sessions` one-call API: upsert profile by `(vendor_type, vendor_connection_id)`, wake from warm pool, return `{profile_id, cdp_url, vnc_viewer_url}`
-- [ ] Warm-pool lifecycle: profile stays alive while either a CDP client or a viewer iframe is attached; sleeps after N minutes of *both* disconnected; wakes transparently on the next `/sessions` call
-- [ ] Signed, short-lived, profile-scoped viewer URLs minted by the service for iframe embedding in the Main App
-- [ ] API key / shared-secret authentication for the Main App, distinct from the existing admin login
-- [ ] Profile query / update / delete API for the Main App (by `profile_id` or `(vendor_type, vendor_connection_id)`)
-- [ ] Replace the existing `/api/profiles/*` and `/api/profiles/{id}/launch` endpoints entirely — old surface deprecated/removed
-- [ ] Session state persistence across warm-pool sleep/wake cycles (cookies, localStorage, cache — whatever Chromium persists in the profile directory)
-- [ ] Admin dashboard pivots from end-user browser-farm UI to ops-and-templates UI (list profiles, debug, manage templates)
+_(Empty — run `/gsd-new-milestone` to add v1.1+ requirements.)_
 
 ### Out of Scope
 
-<!-- v1 exclusions with reasoning. -->
-
-- **Upstream proxies / residential IPs** — deferred. Ship v1 without; revisit if vendors start fingerprinting or geoblocking. Proxy fields already exist per-profile but won't be wired to a provider.
-- **Multi-tenancy** — single downstream consumer (one Main App, one API key). No per-tenant isolation, quotas, or OAuth flows.
-- **Distributed / horizontally scaled deployment** — single-box, <20 concurrent. In-memory `running` dict stays. No Redis/routing layer.
-- **Automation logic / selectors / vendor-specific scrapers** — lives in the Main App. This service only provides the browser; it doesn't know what vendor portals look like or how to log in.
-- **End-user identity in this service** — the service knows only `vendor_connection_id` (opaque string from the Main App). It has no notion of who the human is.
-- **OAuth / SSO for API consumer** — shared secret is sufficient for one trusted consumer.
-- **Public deployment / external exposure** — assumed to run on a network the Main App can reach (private VPC, internal DNS, or behind a reverse proxy the Main App controls). Not a public SaaS.
-- **View-only / read-only viewer mode** — v1 ships interactive-only. Can add later if needed.
-- **Profile cloning / export / migration tooling** — not in v1 scope.
-- **Webhooks / push events to Main App** — Main App polls / checks status on demand. No event bus.
+- **Upstream proxies / residential IPs** — deferred; proxy fields exist but no provider wiring
+- **Multi-tenancy** — single Main App consumer
+- **Distributed deployment** — single-box, in-process warm pool
+- **Automation / vendor scrapers** — Main App responsibility
+- **End-user identity in this service** — opaque `vendor_connection_id` only
+- **OAuth for machine auth** — shared API key sufficient
+- **Public internet exposure** — private network deployment assumed
+- **Webhooks to Main App** — poll-based status
+- **Profile cloning / export** — not planned
+- **View-only viewer (v1)** — deferred to v2 (SAFE-02)
 
 ## Context
 
-**Brownfield refocus, not a greenfield build.** The repo already ships a working user-facing browser dashboard (v0.0.7 as of 2026-04-22). This milestone pivots it into an infrastructure service consumed by a separate application.
+**Shipped v1.0** on 2026-05-19 after brownfield refocus from v0.0.7 browser-farm dashboard. Planning archives: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md), [milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md).
 
-**Codebase map** completed 2026-04-22 and committed (see `.planning/codebase/`):
-- `ARCHITECTURE.md` — FastAPI + React + Playwright + KasmVNC layered architecture
-- `STACK.md` — Python 3.12 / FastAPI 0.115+ / React 19 / TypeScript 5.7 / Vite 6 / Tailwind / SQLite / CloakBrowser 0.3.14+
-- `STRUCTURE.md`, `CONVENTIONS.md`, `INTEGRATIONS.md`, `TESTING.md`, `CONCERNS.md`
+**Codebase intelligence:** `.planning/codebase/` snapshot + phase verification docs under `.planning/phases/`.
 
-**What stays and what changes:**
-- **Stays:** Chromium lifecycle (CloakBrowser + Playwright), VNC pipeline (KasmVNC + noVNC + RFB filtering), SQLite persistence, Docker deployment, admin auth, per-profile fingerprint config surface, React dashboard shell
-- **Changes:** Primary API surface (replaces `/api/profiles/*` with `/sessions` + `/templates`), adds Vendor Template entity, adds warm-pool idle tracking, adds signed viewer URLs with scoped tokens, admin dashboard pivots to ops-and-templates use
-- **New from zero:** Vendor Templates, API-key auth for Main App, signed-URL minting, warm-pool state machine
+**Integration:** Main App is a separate codebase; consumes HTTP + WebSocket APIs documented in README.
 
-**Recent work informing this refocus:**
-- `bd15b06` — Added `launch_args` to the profile API (needed per-vendor customization already)
-- `013ef48` — Added per-profile `clipboard_sync` (similar per-profile policy pattern)
-
-**Integration posture:** The Main App is a separate codebase not in this repo. This service exposes an HTTP+WebSocket API contract the Main App consumes. The Main App's end users only ever see this service indirectly, via the iframe viewer embedded in the Main App's own UI.
+**Accepted tech debt at v1.0 close:** VIEW-09 human iframe smoke; SESS-12 slow e2e deselected in CI; optional admin VNC manual QA. See [milestones/v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md).
 
 ## Constraints
 
-- **Tech stack**: Python 3.12 / FastAPI / React 19 / TypeScript / SQLite / Docker — locked by existing codebase, no migrations in v1
-- **Browser engine**: CloakBrowser (+ Playwright) — locked; all fingerprint/humanize features come from here
-- **VNC stack**: KasmVNC server + noVNC client + custom RFB filter — locked; iframe viewer reuses this pipeline
-- **Deployment**: Single host, <20 concurrent profiles — no horizontal scaling, no shared state outside the box
-- **Consumers**: Exactly one trusted downstream app — no multi-tenancy, no per-tenant quotas
-- **Network**: Service and Main App reach each other over a private/internal network — not hardened for public internet
-- **Auth**: Shared-secret (API key) for Main App + existing admin login for dashboard — no OAuth, no mTLS in v1
-- **Persistence**: Profile state lives in on-disk Chromium profile directories — must survive container restart (volume-mounted)
+- **Tech stack**: Python 3.12 / FastAPI / React 19 / TypeScript / SQLite / Docker
+- **Browser engine**: CloakBrowser + Playwright
+- **VNC stack**: KasmVNC + noVNC + custom RFB filter
+- **Deployment**: Single host, <20 concurrent profiles
+- **Consumers**: Exactly one trusted downstream app
+- **Auth**: API key (machine) + admin bearer/cookie (dashboard), strictly segregated by path prefix
+- **Persistence**: On-disk Chromium profile directories on mounted volume
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Templates are full blueprints keyed by `vendor_type` | Consistency across all users of the same vendor; new profiles inherit everything without per-call config | — Pending |
-| Profile identity = `(vendor_type, vendor_connection_id)`; service enforces uniqueness via idempotent upsert | Main App already has `vendor_connection_id`; service stays stateless re: who the human is | — Pending |
-| Warm-pool lifecycle; idle = no CDP client AND no viewer iframe | Preserves login state cheaply; human 2FA in iframe keeps session alive; no explicit "release" call needed | — Pending |
-| One-call `/sessions` API as the canonical happy path | Minimizes Main App complexity; service hides warm-pool mechanics and upsert logic | — Pending |
-| Service mints signed viewer URLs (not Main App) | No signing keys shared with Main App; service controls TTL and revocation | — Pending |
-| API-key / shared-secret auth for Main App | Single trusted consumer; OAuth would be over-engineered | — Pending |
-| No upstream proxies in v1 | Reduce v1 complexity and external dependencies; revisit if vendors block | — Pending |
-| Single-box, <20 concurrent | Matches current infra budget; avoids premature multi-node architecture | — Pending |
-| Replace existing `/api/profiles/*` API entirely | Clean surface area, single source of truth, no dual-API support burden | — Pending |
-| Admin dashboard pivots to template management + ops | Humans add vendors there; API consumers never touch template CRUD; reuses existing React shell | — Pending |
+| Templates are full blueprints keyed by `vendor_type` | Consistent vendor fingerprints | ✓ Good — shipped v1.0 |
+| Profile identity = `(vendor_type, vendor_connection_id)` | Idempotent upsert for Main App | ✓ Good — UNIQUE + per-key lock |
+| Warm-pool idle when both attach counts zero | Preserve login state; 2FA keeps alive | ✓ Good — SessionManager + WS proxies |
+| `POST /sessions` canonical API | Hide warm-pool complexity | ✓ Good |
+| Service mints viewer URLs | No shared signing keys with Main App | ✓ Good — PyJWT HS256 |
+| API-key auth for machine routes | Single trusted consumer | ✓ Good |
+| Replace legacy `/api/profiles/*` admin CRUD | One API surface | ✓ Good — 410 stubs |
+| Admin dashboard → templates + ops | Humans configure vendors; Main App uses machine API | ✓ Good |
+| Token in URL fragment only | Avoid proxy log leakage | ✓ Good |
+| `clipboard_sync` default false | Security for vendor logins | ✓ Good |
 
-## Evolution
+<details>
+<summary>Pre-v1.0 planning context (archived)</summary>
 
-This document evolves at phase transitions and milestone boundaries.
+Brownfield refocus started 2026-04-22 from codebase map. v1 scope was 48 requirements across 5 phases (templates, sessions, viewer, admin pivot, admin VNC integration).
 
-**After each phase transition** (via `/gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
-
-**After each milestone** (via `/gsd-complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+</details>
 
 ---
-*Last updated: 2026-04-22 after initialization*
+*Last updated: 2026-05-19 after v1.0 milestone*
