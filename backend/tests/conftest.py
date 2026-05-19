@@ -70,3 +70,65 @@ def app_client(tmp_db: Path, monkeypatch: pytest.MonkeyPatch):
 
     with TestClient(main.app) as client:
         yield client
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def mock_browser_manager(monkeypatch):
+    """A MagicMock-flavored browser_mgr swap-in for integration tests."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from backend import main as _main
+    from backend.browser_manager import RunningProfile
+
+    bm = MagicMock()
+    bm.running = {}
+    bm._lock = asyncio.Lock()
+    bm._launch_sem = asyncio.Semaphore(3)
+
+    async def _default_launch(profile: dict):
+        rp = RunningProfile(
+            profile_id=profile["id"],
+            context=AsyncMock(),
+            display=99,
+            ws_port=6199,
+            cdp_port=5100,
+        )
+        bm.running[profile["id"]] = rp
+        return rp
+
+    bm.launch = AsyncMock(side_effect=_default_launch)
+    bm.stop = AsyncMock()
+    bm._stop_locked = AsyncMock()
+    bm.cleanup_stale = AsyncMock()
+    bm.cleanup_all = AsyncMock()
+    bm.vnc = MagicMock()
+    bm.vnc.cleanup_stale = AsyncMock()
+
+    monkeypatch.setattr(_main, "browser_mgr", bm)
+    return bm
+
+
+@pytest.fixture()
+def auth_headers(monkeypatch):
+    """Set MAIN_APP_API_KEY and return a header dict for authenticated requests."""
+    monkeypatch.setenv("MAIN_APP_API_KEY", "test-key-12345")
+    monkeypatch.setenv("VIEWER_SECRET", "test-viewer-secret")
+    monkeypatch.delenv("DEV_MODE", raising=False)
+    return {"X-API-Key": "test-key-12345"}
+
+
+@pytest.fixture()
+async def async_client(tmp_db, mock_browser_manager):
+    """httpx.AsyncClient with ASGITransport — required for SESS-07 race test."""
+    from httpx import ASGITransport, AsyncClient
+    from backend import main
+
+    transport = ASGITransport(app=main.app)
+    async with main.app.router.lifespan_context(main.app):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client

@@ -26,6 +26,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from . import database as db
 from .browser_manager import BrowserManager
+from .session_manager import SessionManager
 from .models import (
     ClipboardRequest,
     LaunchResponse,
@@ -38,6 +39,8 @@ from .models import (
     TagResponse,
 )
 from .routers.templates import router as templates_router
+from .routers.sessions import router as sessions_router
+from .routers.profiles import router as profiles_router
 
 logger = logging.getLogger("vendorbrowser")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -90,6 +93,13 @@ def _check_required_env() -> None:
 
 # Paths that bypass authentication even when AUTH_TOKEN is set
 _AUTH_EXEMPT = frozenset({"/api/auth/status", "/api/auth/login", "/api/status"})
+
+# Phase 2 (CONTEXT.md D-12, SEC-01): machine API path prefixes
+_AUTH_EXEMPT_PREFIXES: tuple[str, ...] = ("/sessions", "/profiles")
+
+# Phase 2 (RESEARCH.md L-03): CDP WS bypass for AuthMiddleware
+_CDP_WS_PATH_INFIX: str = "/cdp"
+_CDP_WS_PATH_PREFIX: str = "/api/profiles/"
 
 
 def _check_auth(scope: Scope) -> bool:
@@ -174,6 +184,28 @@ async def _check_websocket_origin(websocket: WebSocket) -> bool:
     return False
 
 
+def _ws_api_key_valid(websocket: WebSocket) -> bool:
+    """Validate X-API-Key on WS upgrade scope BEFORE await websocket.accept()."""
+    expected_raw = os.environ.get("MAIN_APP_API_KEY") or ""
+    expected = expected_raw.strip()
+    dev_mode = os.environ.get("DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+
+    if not expected:
+        return dev_mode
+
+    for key, val in websocket.scope.get("headers", []):
+        if key == b"x-api-key":
+            try:
+                provided = val.decode("latin-1").strip()
+            except UnicodeDecodeError:
+                return False
+            return hmac.compare_digest(
+                provided.encode("utf-8"),
+                expected.encode("utf-8"),
+            )
+    return False
+
+
 class AuthMiddleware:
     """Raw ASGI middleware for optional token auth.
 
@@ -191,6 +223,18 @@ class AuthMiddleware:
             return
 
         path = scope["path"]
+
+        if any(path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
+            await self.app(scope, receive, send)
+            return
+
+        if (
+            scope["type"] == "websocket"
+            and path.startswith(_CDP_WS_PATH_PREFIX)
+            and _CDP_WS_PATH_INFIX in path
+        ):
+            await self.app(scope, receive, send)
+            return
 
         # Skip auth for exempt endpoints and non-API paths (static frontend)
         if path in _AUTH_EXEMPT or not path.startswith("/api/"):
@@ -409,18 +453,27 @@ def _filter_rfb_client_messages(data: bytes) -> bytes:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _check_required_env()           # ← fail-closed before DB init / browser setup (SEC-06 / D-17)
+    _check_required_env()           # fail-closed before DB init / browser setup (SEC-05/SEC-06)
     db.init_db()
     await browser_mgr.cleanup_stale()
+    # Phase 2 (CONTEXT.md D-01): SessionManager singleton on app.state.
+    # Routes resolve via Depends(get_session_manager) -> request.app.state.session_manager.
+    app.state.session_manager = SessionManager(browser_mgr=browser_mgr)
     logger.info("VendorBrowser started")
     yield
-    logger.info("Shutting down — stopping all browsers...")
+    logger.info("Shutting down — cancelling idle timers and stopping all browsers...")
+    # Phase 2 (CONTEXT.md D-08, RESEARCH §8): drain idle timers BEFORE
+    # cleanup_all so they don't fire mid-shutdown on closed contexts.
+    sm: SessionManager = app.state.session_manager
+    await sm.shutdown()
     await browser_mgr.cleanup_all()
 
 
 app = FastAPI(title="VendorBrowser", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
 app.include_router(templates_router)
+app.include_router(sessions_router)
+app.include_router(profiles_router)
 
 
 # ── Authentication ────────────────────────────────────────────────────────────
@@ -1010,6 +1063,10 @@ async def cdp_proxy(websocket: WebSocket, profile_id: str):
     if not await _check_websocket_origin(websocket):
         return
 
+    if not _ws_api_key_valid(websocket):
+        await websocket.close(code=4401, reason="Invalid or missing API key")
+        return
+
     running = browser_mgr.running.get(profile_id)
     if not running:
         await websocket.close(code=4004, reason="Profile not running")
@@ -1017,19 +1074,38 @@ async def cdp_proxy(websocket: WebSocket, profile_id: str):
 
     await websocket.accept()
 
-    # Get browser-level CDP WebSocket URL from Chrome
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"http://127.0.0.1:{running.cdp_port}/json/version", timeout=5
-            )
-            ws_url = resp.json()["webSocketDebuggerUrl"]
-    except Exception as exc:
-        logger.error("CDP proxy: failed to get WS URL for %s: %s", profile_id, exc)
-        await websocket.close(code=4005, reason="CDP not available")
-        return
+    # Phase 2 (CONTEXT.md D-04, SESS-04): increment cdp_attach_count under
+    # browser_mgr._lock; on_attach cancels any pending idle timer.
+    sm: SessionManager = websocket.scope["app"].state.session_manager
+    async with browser_mgr._lock:
+        running.cdp_attach_count += 1
+    sm.on_attach(profile_id)
 
-    await _proxy_cdp_websocket(websocket, ws_url, f"CDP proxy [{profile_id}]")
+    try:
+        # Get browser-level CDP WebSocket URL from Chrome
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"http://127.0.0.1:{running.cdp_port}/json/version", timeout=5
+                )
+                ws_url = resp.json()["webSocketDebuggerUrl"]
+        except Exception as exc:
+            logger.error("CDP proxy: failed to get WS URL for %s: %s", profile_id, exc)
+            await websocket.close(code=4005, reason="CDP not available")
+            return
+
+        await _proxy_cdp_websocket(websocket, ws_url, f"CDP proxy [{profile_id}]")
+    finally:
+        # Phase 2 (D-04): decrement cdp_attach_count under lock; on zero across
+        # both signals, schedule idle timer via on_all_detached.
+        async with browser_mgr._lock:
+            running.cdp_attach_count = max(0, running.cdp_attach_count - 1)
+            both_zero = (
+                running.cdp_attach_count == 0
+                and running.viewer_attach_count == 0
+            )
+        if both_zero:
+            sm.on_all_detached(profile_id)
 
 
 @app.websocket("/api/profiles/{profile_id}/cdp/devtools/{path:path}")
@@ -1038,6 +1114,10 @@ async def cdp_page_proxy(websocket: WebSocket, profile_id: str, path: str):
     if not await _check_websocket_origin(websocket):
         return
 
+    if not _ws_api_key_valid(websocket):
+        await websocket.close(code=4401, reason="Invalid or missing API key")
+        return
+
     running = browser_mgr.running.get(profile_id)
     if not running:
         await websocket.close(code=4004, reason="Profile not running")
@@ -1045,8 +1125,24 @@ async def cdp_page_proxy(websocket: WebSocket, profile_id: str, path: str):
 
     await websocket.accept()
 
-    target_url = f"ws://127.0.0.1:{running.cdp_port}/devtools/{path}"
-    await _proxy_cdp_websocket(websocket, target_url, f"CDP page proxy [{profile_id}]")
+    # Phase 2 (D-04): same count-mutate + idle-hook pattern as cdp_proxy.
+    sm: SessionManager = websocket.scope["app"].state.session_manager
+    async with browser_mgr._lock:
+        running.cdp_attach_count += 1
+    sm.on_attach(profile_id)
+
+    try:
+        target_url = f"ws://127.0.0.1:{running.cdp_port}/devtools/{path}"
+        await _proxy_cdp_websocket(websocket, target_url, f"CDP page proxy [{profile_id}]")
+    finally:
+        async with browser_mgr._lock:
+            running.cdp_attach_count = max(0, running.cdp_attach_count - 1)
+            both_zero = (
+                running.cdp_attach_count == 0
+                and running.viewer_attach_count == 0
+            )
+        if both_zero:
+            sm.on_all_detached(profile_id)
 
 
 # ── Static Frontend ───────────────────────────────────────────────────────────
