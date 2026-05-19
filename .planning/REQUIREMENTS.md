@@ -9,11 +9,11 @@ Requirements for the first release of the refocused service. Each maps to roadma
 
 ### Templates
 
-- [ ] **TMPL-01**: Admin can create vendor templates via the admin dashboard with a full blueprint (`fingerprint_seed` rules, `timezone`, `locale`, `platform`, `screen` dimensions, `gpu`, `humanize`, `launch_args`, `clipboard_sync`, `proxy` fields)
-- [ ] **TMPL-02**: Templates are uniquely keyed by `vendor_type`; the database rejects duplicates
-- [ ] **TMPL-03**: Admin can edit vendor templates; edits apply to profiles created after the edit and do not mutate snapshots of existing profiles
-- [ ] **TMPL-04**: Admin can delete vendor templates; deletion is blocked while any profiles exist for that `vendor_type`
-- [ ] **TMPL-05**: Template fields are snapshot-copied into the profile row at creation; the warm pool never re-reads the live template on wake
+- [x] **TMPL-01**: Admin can create vendor templates via the admin dashboard with a full blueprint (`fingerprint_seed` rules, `timezone`, `locale`, `platform`, `screen` dimensions, `gpu`, `humanize`, `launch_args`, `clipboard_sync`, `proxy` fields)
+- [x] **TMPL-02**: Templates are uniquely keyed by `vendor_type`; the database rejects duplicates
+- [x] **TMPL-03**: Admin can edit vendor templates; edits apply to profiles created after the edit and do not mutate snapshots of existing profiles
+- [x] **TMPL-04**: Admin can delete vendor templates; deletion is blocked while any profiles exist for that `vendor_type`
+- [x] **TMPL-05**: Template fields are snapshot-copied into the profile row at creation; the warm pool never re-reads the live template on wake
 
 ### Sessions
 
@@ -57,8 +57,8 @@ Requirements for the first release of the refocused service. Each maps to roadma
 - [ ] **SEC-02**: Admin routes (`/admin/*` and the dashboard shell) remain protected by the existing `AuthMiddleware` (bearer token / `auth_token` cookie); the two auth surfaces are strictly segregated by router prefix
 - [ ] **SEC-03**: The admin `auth_token` cookie is set with `SameSite=Strict` and `HttpOnly`
 - [ ] **SEC-04**: Admin API responses carry `Content-Security-Policy: frame-ancestors 'none'` — the admin surface cannot be framed by anything
-- [ ] **SEC-05**: The service refuses to start when `VIEWER_SECRET` or `MAIN_APP_API_KEY` is unset (or blank) in production mode
-- [ ] **SEC-06**: `clipboard_sync` defaults to `false` in the vendor template schema and in any profile created without an explicit value
+- [x] **SEC-05**: The service refuses to start when `VIEWER_SECRET` or `MAIN_APP_API_KEY` is unset (or blank) in production mode
+- [x] **SEC-06**: `clipboard_sync` defaults to `false` in the vendor template schema and in any profile created without an explicit value
 - [ ] **SEC-07**: `GET /profiles/{id}/clipboard` requires a viewer-scoped signed token; requests authenticated only by the Main App API key are rejected
 
 ### Admin UI
@@ -72,9 +72,9 @@ Requirements for the first release of the refocused service. Each maps to roadma
 
 - [ ] **OPS-01**: The old `/api/profiles/{id}/launch` and `/api/profiles/{id}/stop` endpoints are removed
 - [ ] **OPS-02**: The old `/api/profiles/*` CRUD surface is replaced by the new machine API (`/profiles` with `(vendor_type, vendor_connection_id)` lookup + admin CRUD behind admin auth)
-- [ ] **OPS-03**: Database schema migration adds the `vendor_templates` table and adds `vendor_type`, `vendor_connection_id`, and `template_snapshot` columns to `profiles`; existing rows get a one-time backfill or are dropped per the migration plan
-- [ ] **OPS-04**: Docker entrypoint performs `chown -R` to the `CHROME_UID` on the mounted profile-state volume before the service starts, preventing Chromium cookie-flush failures from UID mismatch
-- [ ] **OPS-05**: `docker-compose.yml` and `.env.example` document the new required env vars: `MAIN_APP_API_KEY`, `VIEWER_SECRET`, `MAIN_APP_ORIGIN`, `IDLE_TIMEOUT_SECONDS`, `VIEWER_TOKEN_TTL_SECS`
+- [x] **OPS-03**: Database schema migration adds the `vendor_templates` table and adds `vendor_type`, `vendor_connection_id`, and `template_snapshot` columns to `profiles`; existing rows get a one-time backfill or are dropped per the migration plan
+- [x] **OPS-04**: Docker entrypoint performs `chown -R` to the `CHROME_UID` on the mounted profile-state volume before the service starts, preventing Chromium cookie-flush failures from UID mismatch
+- [x] **OPS-05**: `docker-compose.yml` and `.env.example` document the new required env vars: `MAIN_APP_API_KEY`, `VIEWER_SECRET`, `MAIN_APP_ORIGIN`, `IDLE_TIMEOUT_SECONDS`, `VIEWER_TOKEN_TTL_SECS`
 
 ## v2 Requirements
 
@@ -122,11 +122,11 @@ Populated by the roadmap agent.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TMPL-01 | Phase 1 | Pending |
-| TMPL-02 | Phase 1 | Pending |
-| TMPL-03 | Phase 1 | Pending |
-| TMPL-04 | Phase 1 | Pending |
-| TMPL-05 | Phase 1 | Pending |
+| TMPL-01 | Phase 1 | Complete |
+| TMPL-02 | Phase 1 | Complete |
+| TMPL-03 | Phase 1 | Complete |
+| TMPL-04 | Phase 1 | Complete |
+| TMPL-05 | Phase 1 | Complete |
 | SESS-01 | Phase 2 | Pending |
 | SESS-02 | Phase 2 | Pending |
 | SESS-03 | Phase 2 | Pending |
@@ -158,8 +158,8 @@ Populated by the roadmap agent.
 | SEC-02 | Phase 3 | Pending |
 | SEC-03 | Phase 3 | Pending |
 | SEC-04 | Phase 3 | Pending |
-| SEC-05 | Phase 1 | Pending |
-| SEC-06 | Phase 1 | Pending |
+| SEC-05 | Phase 1 | Complete |
+| SEC-06 | Phase 1 | Complete |
 | SEC-07 | Phase 3 | Pending |
 | ADM-01 | Phase 4 | Pending |
 | ADM-02 | Phase 4 | Pending |
@@ -167,9 +167,9 @@ Populated by the roadmap agent.
 | ADM-04 | Phase 4 | Pending |
 | OPS-01 | Phase 4 | Pending |
 | OPS-02 | Phase 4 | Pending |
-| OPS-03 | Phase 1 | Pending |
-| OPS-04 | Phase 1 | Pending |
-| OPS-05 | Phase 1 | Pending |
+| OPS-03 | Phase 1 | Complete |
+| OPS-04 | Phase 1 | Complete |
+| OPS-05 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 48 total

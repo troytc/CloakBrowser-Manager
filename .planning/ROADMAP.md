@@ -9,7 +9,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Schema, Templates, and Security Foundations** — `vendor_templates` table, template CRUD API and admin UI, clipboard default flip, Docker UID fix, env var scaffolding
+- [x] **Phase 1: Schema, Templates, and Security Foundations** — `vendor_templates` table, template CRUD API and admin UI, clipboard default flip, Docker UID fix, env var scaffolding (completed 2026-05-19)
 - [ ] **Phase 2: Sessions, Warm-Pool, and CDP Lifecycle** — `SessionManager`, dual-signal idle detection, `POST /sessions`, profile CRUD, concurrency guards, API-key auth on machine routes
 - [ ] **Phase 3: Signed Viewer URLs and Security Hardening** — `/viewer/*` WS route, JWT minting via PyJWT, fragment-token delivery, JTI registry, CSP, admin cookie hardening, clipboard viewer-scoping
 - [ ] **Phase 4: Admin Dashboard Pivot and API Surface Cleanup** — `SessionList.tsx` + `TemplateList/Form` pivoted to ops use, old `/api/profiles/{id}/launch` removed, final API surface cleanup
@@ -142,7 +142,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Schema, Templates, and Security Foundations | 0/? | Not started | - |
+| 1. Schema, Templates, and Security Foundations | 8/8 | Complete    | 2026-05-19 |
 | 2. Sessions, Warm-Pool, and CDP Lifecycle | 0/9 | Not started | - |
 | 3. Signed Viewer URLs and Security Hardening | 0/? | Not started | - |
 | 4. Admin Dashboard Pivot and API Surface Cleanup | 0/? | Not started | - |
