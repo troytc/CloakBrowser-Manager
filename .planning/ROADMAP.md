@@ -10,7 +10,7 @@
 ## Phases
 
 - [x] **Phase 1: Schema, Templates, and Security Foundations** — `vendor_templates` table, template CRUD API and admin UI, clipboard default flip, Docker UID fix, env var scaffolding (completed 2026-05-19)
-- [ ] **Phase 2: Sessions, Warm-Pool, and CDP Lifecycle** — `SessionManager`, dual-signal idle detection, `POST /sessions`, profile CRUD, concurrency guards, API-key auth on machine routes
+- [x] **Phase 2: Sessions, Warm-Pool, and CDP Lifecycle** — `SessionManager`, dual-signal idle detection, `POST /sessions`, profile CRUD, concurrency guards, API-key auth on machine routes (completed 2026-05-19)
 - [ ] **Phase 3: Signed Viewer URLs and Security Hardening** — `/viewer/*` WS route, JWT minting via PyJWT, fragment-token delivery, JTI registry, CSP, admin cookie hardening, clipboard viewer-scoping
 - [ ] **Phase 4: Admin Dashboard Pivot and API Surface Cleanup** — `SessionList.tsx` + `TemplateList/Form` pivoted to ops use, old `/api/profiles/{id}/launch` removed, final API surface cleanup
 
@@ -70,15 +70,15 @@ Plans:
 **Plans**: 9 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Wave 1: BrowserManager hardening (Semaphore(3), about:blank probe, _stop_locked refactor, RunningProfile extension)
-- [ ] 02-02-PLAN.md — Wave 1: APIKeyHeader auth (require_api_key) + AuthMiddleware /sessions /profiles exemption + CDP WS X-API-Key check
-- [ ] 02-03-PLAN.md — Wave 1: upsert_profile_by_vendor() + list_profiles_filtered() + NoTemplateError in database.py
-- [ ] 02-04-PLAN.md — Wave 2: SessionManager keystone (per-key locks, idle task lifecycle, get_or_wake)
-- [ ] 02-05-PLAN.md — Wave 2: FastAPI lifespan SessionManager wiring + CDP WS try/finally count mutations
-- [ ] 02-06-PLAN.md — Wave 1: Pydantic models — SessionRequest/Response/StatusResponse/ListItem, ProfilePatch, MachineProfileResponse
-- [ ] 02-07-PLAN.md — Wave 3: backend/routers/sessions.py — POST/GET/DELETE /sessions + integration tests including SESS-07 race regression
-- [ ] 02-08-PLAN.md — Wave 4: backend/routers/profiles.py — GET/PATCH/DELETE /profiles + integration tests
-- [ ] 02-09-PLAN.md — Wave 5: pytest slow marker + test_warm_pool_e2e.py (sleep/wake state persistence + restart safety)
+- [x] 02-01-PLAN.md — Wave 1: BrowserManager hardening (Semaphore(3), about:blank probe, _stop_locked refactor, RunningProfile extension)
+- [x] 02-02-PLAN.md — Wave 1: APIKeyHeader auth (require_api_key) + AuthMiddleware /sessions /profiles exemption + CDP WS X-API-Key check
+- [x] 02-03-PLAN.md — Wave 1: upsert_profile_by_vendor() + list_profiles_filtered() + NoTemplateError in database.py
+- [x] 02-04-PLAN.md — Wave 2: SessionManager keystone (per-key locks, idle task lifecycle, get_or_wake)
+- [x] 02-05-PLAN.md — Wave 2: FastAPI lifespan SessionManager wiring + CDP WS try/finally count mutations
+- [x] 02-06-PLAN.md — Wave 1: Pydantic models — SessionRequest/Response/StatusResponse/ListItem, ProfilePatch, MachineProfileResponse
+- [x] 02-07-PLAN.md — Wave 3: backend/routers/sessions.py — POST/GET/DELETE /sessions + integration tests including SESS-07 race regression
+- [x] 02-08-PLAN.md — Wave 4: backend/routers/profiles.py — GET/PATCH/DELETE /profiles + integration tests
+- [x] 02-09-PLAN.md — Wave 5: pytest slow marker + test_warm_pool_e2e.py (sleep/wake state persistence + restart safety)
 
 **Parallelization notes**:
 - `SessionList.tsx` (Phase 4 frontend) can begin development once `GET /sessions` exists — it is purely additive React work.
