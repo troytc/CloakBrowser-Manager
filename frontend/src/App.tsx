@@ -1,22 +1,20 @@
 import { useState, useCallback, useEffect } from "react";
 import { Lock, PanelLeftClose, PanelLeft } from "lucide-react";
-import { useProfiles } from "./hooks/useProfiles";
+import { useSessions } from "./hooks/useSessions";
 import { useTemplates } from "./hooks/useTemplates";
-import { api, setOnUnauthorized, type ProfileCreateData } from "./lib/api";
-import type { VendorTemplateCreateData } from "./lib/api";
-import { ProfileList } from "./components/ProfileList";
-import { ProfileForm } from "./components/ProfileForm";
+import { api, setOnUnauthorized, type VendorTemplateCreateData } from "./lib/api";
+import type { AdminSessionListItem } from "./lib/api";
 import { ProfileViewer } from "./components/ProfileViewer";
-import { LaunchButton } from "./components/LaunchButton";
 import { StatusIndicator } from "./components/StatusIndicator";
 import { LoginPage } from "./components/LoginPage";
 import { TemplateList } from "./components/TemplateList";
 import { TemplateForm } from "./components/TemplateForm";
 import { DeleteBlockedModal } from "./components/DeleteBlockedModal";
+import { SessionList } from "./components/SessionList";
 
 type AuthState = "checking" | "required" | "ok" | "error";
-type View = "empty" | "create" | "edit" | "view";
-type Surface = "profiles" | "templates";
+type Surface = "sessions" | "templates";
+type SessionView = "empty" | "view" | "detail";
 type TemplateView = "empty" | "create" | "edit";
 
 export default function App() {
@@ -96,12 +94,12 @@ interface AppContentProps {
 }
 
 function AppContent({ authRequired, onLogout }: AppContentProps) {
-  const { profiles, loading, error, create, update, remove, launch, stop } = useProfiles();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<View>("empty");
+  const { sessions, loading: sessionsLoading, error: sessionsError } = useSessions();
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sessionView, setSessionView] = useState<SessionView>("empty");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [surface, setSurface] = useState<Surface>("sessions");
 
-  const [surface, setSurface] = useState<Surface>("profiles");
   const [templateView, setTemplateView] = useState<TemplateView>("empty");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
@@ -116,9 +114,24 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
     dismissDeleteBlocked,
   } = useTemplates();
 
+  const selectedSession: AdminSessionListItem | null =
+    selectedSessionId
+      ? sessions.find((s) => s.profile_id === selectedSessionId) ?? null
+      : null;
+
   const selectedTemplate = selectedTemplateId
     ? templates.find((t) => t.id === selectedTemplateId) ?? null
     : null;
+
+  const handleSelectSession = useCallback((profileId: string) => {
+    setSelectedSessionId(profileId);
+    const row = sessions.find((s) => s.profile_id === profileId);
+    if (row?.state === "running" || row?.state === "idle") {
+      setSessionView("view");
+    } else {
+      setSessionView("detail");
+    }
+  }, [sessions]);
 
   const handleCreateTemplate = async (data: VendorTemplateCreateData) => {
     const result = await createTemplate(data);
@@ -142,66 +155,13 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
   const handleDeleteTemplateFromForm = async () => {
     if (!selectedTemplateId) return;
     const result = await removeTemplate(selectedTemplateId);
-    // BL-02 fix: branch on the returned discriminated union, not on the
-    // `deleteBlocked` closure (which reads the prior render's value).
-    // When blocked, leave selectedTemplateId/templateView unchanged so the
-    // form stays mounted under DeleteBlockedModal.
     if (!result.blocked) {
       setSelectedTemplateId(null);
       setTemplateView("empty");
     }
   };
 
-  const selected = profiles.find((p) => p.id === selectedId) ?? null;
-
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId(id);
-    const profile = profiles.find((p) => p.id === id);
-    setView(profile?.status === "running" ? "view" : "edit");
-  }, [profiles]);
-
-  const handleNew = useCallback(() => {
-    setSelectedId(null);
-    setView("create");
-  }, []);
-
-  const handleCreate = useCallback(async (data: ProfileCreateData) => {
-    const profile = await create(data);
-    if (profile) {
-      setSelectedId(profile.id);
-      setView("edit");
-    }
-  }, [create]);
-
-  const handleUpdate = useCallback(async (data: ProfileCreateData) => {
-    if (!selectedId) return;
-    await update(selectedId, data);
-  }, [selectedId, update]);
-
-  const handleDelete = useCallback(async () => {
-    if (!selectedId) return;
-    await remove(selectedId);
-    setSelectedId(null);
-    setView("empty");
-  }, [selectedId, remove]);
-
-  const handleLaunch = useCallback(async () => {
-    if (!selectedId) return;
-    const result = await launch(selectedId);
-    if (result) setView("view");
-  }, [selectedId, launch]);
-
-  const handleStop = useCallback(async () => {
-    if (!selectedId) return;
-    await stop(selectedId);
-    setView("edit");
-  }, [selectedId, stop]);
-
-  const handleVncDisconnect = useCallback(() => {
-    setView("edit");
-  }, []);
-
-  if (loading) {
+  if (sessionsLoading && surface === "sessions" && sessions.length === 0) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-gray-500 text-sm">Loading...</div>
@@ -211,21 +171,34 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
 
   return (
     <div className="h-screen flex">
-      {/* Sidebar */}
       {sidebarOpen && (
-        <div className="w-64 border-r border-border bg-surface-1 flex-shrink-0">
-          <ProfileList
-            profiles={profiles}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            onNew={handleNew}
-          />
+        <div className="w-72 border-r border-border bg-surface-1 flex-shrink-0 flex flex-col">
+          {surface === "sessions" ? (
+            <SessionList
+              sessions={sessions}
+              loading={sessionsLoading}
+              selectedId={selectedSessionId}
+              onSelect={handleSelectSession}
+            />
+          ) : (
+            <TemplateList
+              templates={templates}
+              loading={templatesLoading}
+              onCreate={() => {
+                setSelectedTemplateId(null);
+                setTemplateView("create");
+              }}
+              onEdit={(id) => {
+                setSelectedTemplateId(id);
+                setTemplateView("edit");
+              }}
+              onDelete={(id) => removeTemplate(id)}
+            />
+          )}
         </div>
       )}
 
-      {/* Main panel */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-1">
           <div className="flex items-center gap-3">
             <button
@@ -238,14 +211,16 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
             <div className="flex items-center gap-1 bg-surface-2 rounded-md p-0.5">
               <button
                 type="button"
-                onClick={() => setSurface("profiles")}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                  surface === "profiles"
-                    ? "bg-surface-3 text-gray-100"
-                    : "text-gray-400 hover:text-gray-200"
-                }`}
+                onClick={() => {
+                  setSurface("sessions");
+                  setSessionView("empty");
+                }}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${surface === "sessions"
+                  ? "bg-surface-3 text-gray-100"
+                  : "text-gray-400 hover:text-gray-200"
+                  }`}
               >
-                Profiles
+                Sessions
               </button>
               <button
                 type="button"
@@ -254,31 +229,30 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
                   setSelectedTemplateId(null);
                   setTemplateView("empty");
                 }}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                  surface === "templates"
-                    ? "bg-surface-3 text-gray-100"
-                    : "text-gray-400 hover:text-gray-200"
-                }`}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${surface === "templates"
+                  ? "bg-surface-3 text-gray-100"
+                  : "text-gray-400 hover:text-gray-200"
+                  }`}
               >
                 Templates
               </button>
             </div>
-            {selected && (
+            {surface === "sessions" && selectedSession && (
               <div className="flex items-center gap-2">
-                <StatusIndicator status={selected.status} size="md" />
-                <span className="text-sm font-medium">{selected.name}</span>
-                <span className="text-xs text-gray-500 capitalize">{selected.platform}</span>
+                <StatusIndicator
+                  status={selectedSession.state === "stopped" ? "stopped" : "running"}
+                  size="md"
+                />
+                <span className="text-sm font-medium text-gray-200">
+                  {selectedSession.vendor_type}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {selectedSession.vendor_connection_id}
+                </span>
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {selected && (
-              <LaunchButton
-                status={selected.status}
-                onLaunch={handleLaunch}
-                onStop={handleStop}
-              />
-            )}
             {authRequired && (
               <button
                 onClick={onLogout}
@@ -291,52 +265,45 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
           </div>
         </div>
 
-        {/* Error banner */}
-        {(surface === "profiles" ? error : templatesError) && (
+        {(surface === "sessions" ? sessionsError : templatesError) && (
           <div className="px-4 py-2 bg-red-600/15 border-b border-red-600/30 text-red-400 text-sm">
-            {surface === "profiles" ? error : templatesError}
+            {surface === "sessions" ? sessionsError : templatesError}
           </div>
         )}
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          {surface === "profiles" && (
+          {surface === "sessions" && (
             <>
-              {view === "empty" && (
+              {sessionView === "empty" && (
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <p className="text-gray-500 text-sm">Select a profile or create a new one</p>
-                  </div>
+                  <p className="text-gray-500 text-sm">Select a session</p>
                 </div>
               )}
-
-              {view === "create" && (
-                <ProfileForm
-                  profile={null}
-                  onSave={handleCreate}
-                  onCancel={() => setView("empty")}
-                />
+              {sessionView === "detail" && selectedSession && (
+                <div className="max-w-lg mx-auto p-8 space-y-4">
+                  <h2 className="text-lg font-semibold text-gray-100">Session stopped</h2>
+                  <p className="text-sm text-gray-400">
+                    Wake this profile via the Main App <code className="text-gray-300">POST /sessions</code>{" "}
+                    with vendor <strong>{selectedSession.vendor_type}</strong> and connection{" "}
+                    <strong>{selectedSession.vendor_connection_id}</strong>.
+                  </p>
+                  <dl className="text-sm grid grid-cols-2 gap-2 text-gray-400">
+                    <dt>State</dt>
+                    <dd className="capitalize text-gray-200">{selectedSession.state}</dd>
+                    <dt>CDP attaches</dt>
+                    <dd>{selectedSession.cdp_attach_count}</dd>
+                    <dt>Viewer attaches</dt>
+                    <dd>{selectedSession.viewer_attach_count}</dd>
+                  </dl>
+                </div>
               )}
-
-              {view === "edit" && selected && (
-                <ProfileForm
-                  profile={selected}
-                  onSave={handleUpdate}
-                  onDelete={handleDelete}
-                  onCancel={() => {
-                    setSelectedId(null);
-                    setView("empty");
-                  }}
-                />
-              )}
-
-              {view === "view" && selected && selected.status === "running" && (
+              {sessionView === "view" && selectedSession && (selectedSession.state === "running" || selectedSession.state === "idle") && (
                 <ProfileViewer
-                  key={selected.id}
-                  profileId={selected.id}
-                  cdpUrl={selected.cdp_url}
-                  clipboardSync={selected.clipboard_sync}
-                  onDisconnect={handleVncDisconnect}
+                  key={selectedSession.profile_id}
+                  profileId={selectedSession.profile_id}
+                  cdpUrl={null}
+                  clipboardSync={selectedSession.clipboard_sync}
+                  onDisconnect={() => setSessionView("detail")}
                 />
               )}
             </>
@@ -345,21 +312,22 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
           {surface === "templates" && (
             <>
               {templateView === "empty" && (
-                <TemplateList
-                  templates={templates}
-                  loading={templatesLoading}
-                  onCreate={() => {
-                    setSelectedTemplateId(null);
-                    setTemplateView("create");
-                  }}
-                  onEdit={(id) => {
-                    setSelectedTemplateId(id);
-                    setTemplateView("edit");
-                  }}
-                  onDelete={(id) => removeTemplate(id)}
-                />
+                <div className="h-full">
+                  <TemplateList
+                    templates={templates}
+                    loading={templatesLoading}
+                    onCreate={() => {
+                      setSelectedTemplateId(null);
+                      setTemplateView("create");
+                    }}
+                    onEdit={(id) => {
+                      setSelectedTemplateId(id);
+                      setTemplateView("edit");
+                    }}
+                    onDelete={(id) => removeTemplate(id)}
+                  />
+                </div>
               )}
-
               {templateView === "create" && (
                 <TemplateForm
                   template={null}
@@ -367,7 +335,6 @@ function AppContent({ authRequired, onLogout }: AppContentProps) {
                   onCancel={() => setTemplateView("empty")}
                 />
               )}
-
               {templateView === "edit" && selectedTemplate && (
                 <TemplateForm
                   template={selectedTemplate}

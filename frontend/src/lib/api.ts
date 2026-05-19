@@ -71,6 +71,20 @@ export interface SystemStatus {
   profiles_total: number;
 }
 
+export interface AdminSessionListItem {
+  profile_id: string;
+  name: string;
+  vendor_type: string;
+  vendor_connection_id: string;
+  state: "running" | "idle" | "stopped";
+  cdp_attach_count: number;
+  viewer_attach_count: number;
+  idle_expires_at: string | null;
+  last_launched_at: string | null;
+  uptime_seconds: number | null;
+  clipboard_sync: boolean;
+}
+
 export interface TemplateBlueprint {
   timezone: string | null;
   locale: string | null;
@@ -163,30 +177,11 @@ export const api = {
   logout: () =>
     request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
 
-  listProfiles: () => request<Profile[]>("/api/profiles"),
-
-  getProfile: (id: string) => request<Profile>(`/api/profiles/${id}`),
-
-  createProfile: (data: ProfileCreateData) =>
-    request<Profile>("/api/profiles", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-
-  updateProfile: (id: string, data: Partial<ProfileCreateData>) =>
-    request<Profile>(`/api/profiles/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+  listAdminSessions: () =>
+    request<AdminSessionListItem[]>("/api/admin/sessions"),
 
   deleteProfile: (id: string) =>
     request<{ ok: boolean }>(`/api/profiles/${id}`, { method: "DELETE" }),
-
-  launchProfile: (id: string) =>
-    request<LaunchResult>(`/api/profiles/${id}/launch`, { method: "POST" }),
-
-  stopProfile: (id: string) =>
-    request<{ ok: boolean }>(`/api/profiles/${id}/stop`, { method: "POST" }),
 
   getStatus: () => request<SystemStatus>("/api/status"),
 

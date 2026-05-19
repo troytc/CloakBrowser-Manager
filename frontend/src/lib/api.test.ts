@@ -18,46 +18,6 @@ beforeEach(() => {
   mockFetch.mockReset();
 });
 
-// ── listProfiles ────────────────────────────────────────────────────────────
-
-describe("api.listProfiles", () => {
-  it("returns profile array on success", async () => {
-    const profiles = [{ id: "1", name: "Test" }];
-    mockFetch.mockResolvedValueOnce(jsonResponse(profiles));
-    const result = await api.listProfiles();
-    expect(result).toEqual(profiles);
-    expect(mockFetch).toHaveBeenCalledWith("/api/profiles", {
-      headers: { "Content-Type": "application/json" },
-    });
-  });
-});
-
-// ── createProfile ───────────────────────────────────────────────────────────
-
-describe("api.createProfile", () => {
-  it("sends POST with JSON body", async () => {
-    const profile = { id: "2", name: "New" };
-    mockFetch.mockResolvedValueOnce(jsonResponse(profile));
-    await api.createProfile({ name: "New" });
-    const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/profiles");
-    expect(options.method).toBe("POST");
-    expect(JSON.parse(options.body)).toEqual({ name: "New" });
-  });
-});
-
-// ── updateProfile ───────────────────────────────────────────────────────────
-
-describe("api.updateProfile", () => {
-  it("sends PUT with JSON body", async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ id: "1", name: "Updated" }));
-    await api.updateProfile("1", { name: "Updated" });
-    const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/profiles/1");
-    expect(options.method).toBe("PUT");
-  });
-});
-
 // ── deleteProfile ───────────────────────────────────────────────────────────
 
 describe("api.deleteProfile", () => {
@@ -71,25 +31,29 @@ describe("api.deleteProfile", () => {
   });
 });
 
-// ── launchProfile ───────────────────────────────────────────────────────────
+// ── listAdminSessions ───────────────────────────────────────────────────────
 
-describe("api.launchProfile", () => {
-  it("sends POST to launch endpoint", async () => {
-    const result = { profile_id: "1", status: "running", vnc_ws_port: 6100, display: ":100" };
-    mockFetch.mockResolvedValueOnce(jsonResponse(result));
-    const data = await api.launchProfile("1");
-    expect(data.vnc_ws_port).toBe(6100);
-    expect(mockFetch.mock.calls[0][0]).toBe("/api/profiles/1/launch");
-  });
-});
-
-// ── stopProfile ─────────────────────────────────────────────────────────────
-
-describe("api.stopProfile", () => {
-  it("sends POST to stop endpoint", async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ ok: true }));
-    await api.stopProfile("1");
-    expect(mockFetch.mock.calls[0][0]).toBe("/api/profiles/1/stop");
+describe("api.listAdminSessions", () => {
+  it("sends GET to admin sessions endpoint", async () => {
+    const rows = [
+      {
+        profile_id: "p1",
+        name: "Test",
+        vendor_type: "acme",
+        vendor_connection_id: "conn-1",
+        state: "stopped",
+        cdp_attach_count: 0,
+        viewer_attach_count: 0,
+        idle_expires_at: null,
+        last_launched_at: null,
+        uptime_seconds: null,
+        clipboard_sync: false,
+      },
+    ];
+    mockFetch.mockResolvedValueOnce(jsonResponse(rows));
+    const data = await api.listAdminSessions();
+    expect(data).toHaveLength(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("/api/admin/sessions");
   });
 });
 
@@ -126,7 +90,7 @@ describe("error handling", () => {
       statusText: "Not Found",
       json: () => Promise.resolve({ detail: "Profile not found" }),
     });
-    await expect(api.getProfile("bad")).rejects.toThrow("Profile not found");
+    await expect(api.listAdminSessions()).rejects.toThrow("Profile not found");
   });
 
   it("falls back to statusText when response is not JSON", async () => {
