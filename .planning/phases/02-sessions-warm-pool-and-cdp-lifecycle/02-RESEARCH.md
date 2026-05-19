@@ -1513,7 +1513,7 @@ addopts = "-m 'not slow'"
 | A4 | The Main App connects via server-side `websockets.connect(extra_headers=...)`, not browser JS, so X-API-Key in upgrade headers works | §1 CDP WS Auth (L-03) | If Main App ever uses browser JS for CDP, headers are not supported by browser WebSocket API. Phase 2 assumes server-side only — documented in `cdp_proxy` docstring. |
 | A5 | `IDLE_TIMEOUT_SECONDS` is read at idle-task-schedule time, not at task-fire time | §12 State Computation | If env var changes mid-process, behavior is "frozen at schedule." Acceptable — env vars don't change at runtime. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Phase 1 didn't add `last_launched_at` columns to `profiles`. Should `GET /sessions/{id}` return null for `last_launched_at` after a service restart?**
    - What we know: D-18 says ISO-8601 of most recent successful launch, else `null`. Claude's discretion section says "in-memory only; lost on restart."

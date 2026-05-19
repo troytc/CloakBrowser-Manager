@@ -2,7 +2,7 @@
 
 **Milestone:** Warm-pool / Templates / Signed-Viewer
 **Created:** 2026-04-22
-**Granularity:** Coarse (4 phases)
+**Granularity:** Coarse (5 phases)
 **Coverage:** 48/48 v1 requirements
 
 ---
@@ -11,8 +11,9 @@
 
 - [x] **Phase 1: Schema, Templates, and Security Foundations** — `vendor_templates` table, template CRUD API and admin UI, clipboard default flip, Docker UID fix, env var scaffolding (completed 2026-05-19)
 - [x] **Phase 2: Sessions, Warm-Pool, and CDP Lifecycle** — `SessionManager`, dual-signal idle detection, `POST /sessions`, profile CRUD, concurrency guards, API-key auth on machine routes (completed 2026-05-19)
-- [ ] **Phase 3: Signed Viewer URLs and Security Hardening** — `/viewer/*` WS route, JWT minting via PyJWT, fragment-token delivery, JTI registry, CSP, admin cookie hardening, clipboard viewer-scoping
-- [ ] **Phase 4: Admin Dashboard Pivot and API Surface Cleanup** — `SessionList.tsx` + `TemplateList/Form` pivoted to ops use, old `/api/profiles/{id}/launch` removed, final API surface cleanup
+- [x] **Phase 3: Signed Viewer URLs and Security Hardening** — `/viewer/*` WS route, JWT minting via PyJWT, fragment-token delivery, JTI registry, CSP, admin cookie hardening, clipboard viewer-scoping (completed 2026-05-19)
+- [x] **Phase 4: Admin Dashboard Pivot and API Surface Cleanup** — `SessionList.tsx` + `TemplateList/Form` pivoted to ops use, old `/api/profiles/{id}/launch` removed, final API surface cleanup (completed 2026-05-19)
+- [x] **Phase 5: Admin VNC warm-pool + clipboard integration** — wire admin VNC WS to `viewer_attach_count` / idle timer; fix admin clipboard read; allow ops viewer for `idle` sessions (completed 2026-05-19)
 
 ---
 
@@ -105,10 +106,10 @@ Plans:
 **Plans:** 4 plans in 4 waves
 
 Plans:
-- [ ] 03-01-PLAN.md — viewer_tokens module (PyJWT mint/validate/JTI registry) [Wave 1]
-- [ ] 03-02-PLAN.md — CSP hardening, clipboard viewer-scoping, SEC-03 verify [Wave 2]
-- [ ] 03-03-PLAN.md — VNC core extract, viewer HTML/WS routes, WS tests [Wave 3]
-- [ ] 03-04-PLAN.md — Wire vnc_viewer_url on POST /sessions + E2E checkpoint [Wave 4]
+- [x] 03-01-PLAN.md — viewer_tokens module (PyJWT mint/validate/JTI registry) [Wave 1]
+- [x] 03-02-PLAN.md — CSP hardening, clipboard viewer-scoping, SEC-03 verify [Wave 2]
+- [x] 03-03-PLAN.md — VNC core extract, viewer HTML/WS routes, WS tests [Wave 3]
+- [x] 03-04-PLAN.md — Wire vnc_viewer_url on POST /sessions + E2E checkpoint [Wave 4]
 
 **Cross-cutting constraints:**
 - Viewer tokens travel in URL fragment only (`#token=`), never in iframe `src` querystring
@@ -141,10 +142,10 @@ Plans:
 **Plans:** 4 plans in 4 waves
 
 Plans:
-- [ ] 04-01-PLAN.md — Admin GET /api/admin/sessions (all profiles + warm-pool envelope) [Wave 1]
-- [ ] 04-02-PLAN.md — api.ts + useSessions + SessionList.tsx [Wave 2]
-- [ ] 04-03-PLAN.md — App.tsx pivot (Sessions/Templates, admin VNC, checkpoint) [Wave 3]
-- [ ] 04-04-PLAN.md — Remove launch/stop/legacy admin CRUD + test cleanup [Wave 4]
+- [x] 04-01-PLAN.md — Admin GET /api/admin/sessions (all profiles + warm-pool envelope) [Wave 1]
+- [x] 04-02-PLAN.md — api.ts + useSessions + SessionList.tsx [Wave 2]
+- [x] 04-03-PLAN.md — App.tsx pivot (Sessions/Templates, admin VNC, checkpoint) [Wave 3]
+- [x] 04-04-PLAN.md — Remove launch/stop/legacy admin CRUD + test cleanup [Wave 4]
 
 **UI hint**: yes
 
@@ -160,9 +161,10 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Schema, Templates, and Security Foundations | 8/8 | Complete    | 2026-05-19 |
-| 2. Sessions, Warm-Pool, and CDP Lifecycle | 0/9 | Not started | - |
-| 3. Signed Viewer URLs and Security Hardening | 0/? | Not started | - |
-| 4. Admin Dashboard Pivot and API Surface Cleanup | 0/4 | Planned | - |
+| 2. Sessions, Warm-Pool, and CDP Lifecycle | 9/9 | Complete    | 2026-05-19 |
+| 3. Signed Viewer URLs and Security Hardening | 4/4 | Complete    | 2026-05-19 |
+| 4. Admin Dashboard Pivot and API Surface Cleanup | 4/4 | Complete    | 2026-05-19 |
+| 5. Admin VNC warm-pool + clipboard integration | 1/1 | Complete    | 2026-05-19 |
 
 ---
 
@@ -193,6 +195,8 @@ Phase 1: vendor_templates schema + template CRUD + clipboard default + Docker UI
                        └──unblocks──> Phase 3: /viewer/* WS + signed tokens + JTI registry + CSP hardening
                                           |
                                           └──unblocks──> Phase 4: Admin pivot + old surface removal
+                                                               |
+                                                               └──unblocks──> Phase 5: Admin VNC warm-pool + clipboard integration
 ```
 
 ---
@@ -207,6 +211,25 @@ Phase 1: vendor_templates schema + template CRUD + clipboard default + Docker UI
 
 **One new dependency only:** `PyJWT >= 2.12.1` for viewer token signing. Do not use `python-jose` (abandoned, CVEs) or raw `hmac` (requires hand-rolling TTL/replay logic). Add to `requirements.txt` in Phase 1 alongside env var scaffolding.
 
+### Phase 5: Admin VNC warm-pool + clipboard integration
+
+**Goal:** Admin dashboard VNC and clipboard participate correctly in warm-pool lifecycle and security boundaries.
+
+**Depends on:** Phase 4
+
+**Requirements:** SESS-04, SESS-05, SESS-06, SEC-07 (admin path), ADM-02, ADM-03
+
+**Success Criteria** (what must be TRUE):
+  1. Admin `WS /api/profiles/{id}/vnc` increments `viewer_attach_count` and cancels idle timer via `on_attach`; on disconnect decrements and may schedule idle when both counts are zero.
+  2. Admin `GET /api/profiles/{id}/clipboard` returns clipboard text for running profiles with `clipboard_sync=true`; machine `GET /profiles/{id}/clipboard` without viewer token still returns 403.
+  3. Sessions list opens admin VNC for `running` and `idle` states (not only `running`).
+
+**Plans:** 1 autonomous execution wave (no formal PLAN files)
+
+Plans:
+- [x] Admin VNC attach accounting + admin clipboard + idle session viewer UX
+
+
 ---
 *Roadmap created: 2026-04-22*
-*Next: `/gsd-plan-phase 1`*
+*Next: `/gsd-plan-phase 5`*
