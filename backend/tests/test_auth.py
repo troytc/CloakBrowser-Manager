@@ -43,7 +43,7 @@ def client_auth(tmp_db, monkeypatch):
 
 
 def test_no_auth_profiles_accessible(client_no_auth: TestClient):
-    resp = client_no_auth.get("/api/profiles")
+    resp = client_no_auth.get("/api/admin/sessions")
     assert resp.status_code == 200
 
 
@@ -65,27 +65,27 @@ def test_no_auth_login_noop(client_no_auth: TestClient):
 
 
 def test_auth_no_token_401(client_auth: TestClient):
-    resp = client_auth.get("/api/profiles")
+    resp = client_auth.get("/api/admin/sessions")
     assert resp.status_code == 401
 
 
 def test_auth_wrong_bearer_401(client_auth: TestClient):
     resp = client_auth.get(
-        "/api/profiles", headers={"Authorization": "Bearer wrong-token"}
+        "/api/admin/sessions", headers={"Authorization": "Bearer wrong-token"}
     )
     assert resp.status_code == 401
 
 
 def test_auth_correct_bearer_200(client_auth: TestClient):
     resp = client_auth.get(
-        "/api/profiles", headers={"Authorization": "Bearer test-secret"}
+        "/api/admin/sessions", headers={"Authorization": "Bearer test-secret"}
     )
     assert resp.status_code == 200
 
 
 def test_auth_correct_cookie_200(client_auth: TestClient):
     client_auth.cookies.set("auth_token", "test-secret")
-    resp = client_auth.get("/api/profiles")
+    resp = client_auth.get("/api/admin/sessions")
     assert resp.status_code == 200
 
 

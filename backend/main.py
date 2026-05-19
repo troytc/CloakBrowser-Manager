@@ -25,7 +25,7 @@ import starlette.requests
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from . import database as db
-from .browser_manager import BrowserManager
+from .browser_manager import BrowserManager, RunningProfile
 from .session_manager import SessionManager
 from .models import (
     ClipboardRequest,
@@ -41,6 +41,10 @@ from .models import (
 from .routers.templates import router as templates_router
 from .routers.sessions import router as sessions_router
 from .routers.profiles import router as profiles_router
+from .routers.admin_sessions import router as admin_sessions_router
+from .routers.profiles_clipboard import router as profiles_clipboard_router
+from .routers.viewer import router as viewer_router
+from .security_csp import admin_frame_ancestors_none
 
 logger = logging.getLogger("vendorbrowser")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -95,7 +99,7 @@ def _check_required_env() -> None:
 _AUTH_EXEMPT = frozenset({"/api/auth/status", "/api/auth/login", "/api/status"})
 
 # Phase 2 (CONTEXT.md D-12, SEC-01): machine API path prefixes
-_AUTH_EXEMPT_PREFIXES: tuple[str, ...] = ("/sessions", "/profiles")
+_AUTH_EXEMPT_PREFIXES: tuple[str, ...] = ("/sessions", "/profiles", "/viewer")
 
 # Phase 2 (RESEARCH.md L-03): CDP WS bypass for AuthMiddleware
 _CDP_WS_PATH_INFIX: str = "/cdp"
@@ -471,9 +475,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="VendorBrowser", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
+
+
+@app.middleware("http")
+async def admin_csp_middleware(request: Request, call_next):
+    """SEC-02: frame-ancestors 'none' on admin /api/* responses only."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        for key, value in admin_frame_ancestors_none().items():
+            response.headers[key] = value
+    return response
+
+
 app.include_router(templates_router)
 app.include_router(sessions_router)
 app.include_router(profiles_router)
+app.include_router(admin_sessions_router)
+app.include_router(profiles_clipboard_router)
+app.include_router(viewer_router)
 
 
 # ── Authentication ────────────────────────────────────────────────────────────
@@ -518,69 +537,32 @@ async def auth_logout(request: Request, response: Response):
     return {"ok": True}
 
 
-# ── Profile CRUD ──────────────────────────────────────────────────────────────
+# ── Profile admin surface (OPS-02: legacy CRUD removed) ───────────────────────
+
+_LEGACY_ADMIN_MSG = (
+    "Admin profile CRUD removed. Use GET /api/admin/sessions for ops, "
+    "or machine POST /sessions for lifecycle."
+)
 
 
-@app.get("/api/profiles", response_model=list[ProfileResponse])
-async def list_profiles():
-    profiles = db.list_profiles()
-    result = []
-    for p in profiles:
-        status = browser_mgr.get_status(p["id"])
-        p["status"] = status["status"]
-        p["vnc_ws_port"] = status["vnc_ws_port"]
-        p["cdp_url"] = status["cdp_url"]
-        p["tags"] = [TagResponse(**t) for t in p.get("tags", [])]
-        result.append(ProfileResponse(**p))
-    return result
+@app.get("/api/profiles")
+async def list_profiles_removed():
+    raise HTTPException(status_code=410, detail=_LEGACY_ADMIN_MSG)
 
 
-@app.post("/api/profiles", response_model=ProfileResponse, status_code=201)
-async def create_profile(req: ProfileCreate):
-    data = req.model_dump()
-    tags = data.pop("tags", None)
-    if tags:
-        data["tags"] = [t.model_dump() if hasattr(t, "model_dump") else t for t in tags]
-    else:
-        data["tags"] = []
-    profile = db.create_profile(**data)
-    status = browser_mgr.get_status(profile["id"])
-    profile["status"] = status["status"]
-    profile["vnc_ws_port"] = status["vnc_ws_port"]
-    profile["cdp_url"] = status["cdp_url"]
-    profile["tags"] = [TagResponse(**t) for t in profile.get("tags", [])]
-    return ProfileResponse(**profile)
+@app.post("/api/profiles")
+async def create_profile_removed():
+    raise HTTPException(status_code=410, detail=_LEGACY_ADMIN_MSG)
 
 
-@app.get("/api/profiles/{profile_id}", response_model=ProfileResponse)
-async def get_profile(profile_id: str):
-    profile = db.get_profile(profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    status = browser_mgr.get_status(profile_id)
-    profile["status"] = status["status"]
-    profile["vnc_ws_port"] = status["vnc_ws_port"]
-    profile["cdp_url"] = status["cdp_url"]
-    profile["tags"] = [TagResponse(**t) for t in profile.get("tags", [])]
-    return ProfileResponse(**profile)
+@app.get("/api/profiles/{profile_id}")
+async def get_profile_removed(profile_id: str):
+    raise HTTPException(status_code=410, detail=_LEGACY_ADMIN_MSG)
 
 
-@app.put("/api/profiles/{profile_id}", response_model=ProfileResponse)
-async def update_profile(profile_id: str, req: ProfileUpdate):
-    # Only pass fields that were explicitly set
-    data = req.model_dump(exclude_unset=True)
-    tags = data.pop("tags", None)
-    if tags is not None:
-        data["tags"] = [t.model_dump() if hasattr(t, "model_dump") else t for t in tags]
-    profile = db.update_profile(profile_id, **data)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    status = browser_mgr.get_status(profile_id)
-    profile["status"] = status["status"]
-    profile["vnc_ws_port"] = status["vnc_ws_port"]
-    profile["cdp_url"] = status["cdp_url"]
-    profile["tags"] = [TagResponse(**t) for t in profile.get("tags", [])]
-    return ProfileResponse(**profile)
+@app.put("/api/profiles/{profile_id}")
+async def update_profile_removed(profile_id: str):
+    raise HTTPException(status_code=410, detail=_LEGACY_ADMIN_MSG)
 
 
 @app.delete("/api/profiles/{profile_id}")
@@ -605,40 +587,23 @@ async def delete_profile(profile_id: str):
     return {"ok": True}
 
 
-# ── Launch / Stop ─────────────────────────────────────────────────────────────
+# ── Launch / Stop (OPS-01 removed) ────────────────────────────────────────────
 
 
-@app.post("/api/profiles/{profile_id}/launch", response_model=LaunchResponse)
-async def launch_profile(profile_id: str):
-    profile = db.get_profile(profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    if profile_id in browser_mgr.running:
-        raise HTTPException(status_code=409, detail="Profile is already running")
-
-    try:
-        running = await browser_mgr.launch(profile)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
-        logger.error("Failed to launch profile %s: %s", profile_id, exc)
-        raise HTTPException(status_code=500, detail="Failed to launch browser")
-
-    return LaunchResponse(
-        profile_id=profile_id,
-        status="running",
-        vnc_ws_port=running.ws_port,
-        display=f":{running.display}",
-        cdp_url=f"/api/profiles/{profile_id}/cdp",
+@app.post("/api/profiles/{profile_id}/launch")
+async def launch_profile_removed(profile_id: str):
+    raise HTTPException(
+        status_code=410,
+        detail="Use POST /sessions to wake profiles (warm pool).",
     )
 
 
 @app.post("/api/profiles/{profile_id}/stop")
-async def stop_profile(profile_id: str):
-    if profile_id not in browser_mgr.running:
-        raise HTTPException(status_code=404, detail="Profile is not running")
-    await browser_mgr.stop(profile_id)
-    return {"ok": True}
+async def stop_profile_removed(profile_id: str):
+    raise HTTPException(
+        status_code=410,
+        detail="Use DELETE /sessions/{profile_id} to stop warm-pool sessions.",
+    )
 
 
 @app.get("/api/profiles/{profile_id}/status", response_model=ProfileStatusResponse)
@@ -706,12 +671,17 @@ async def set_clipboard(profile_id: str, body: ClipboardRequest):
 
 @app.get("/api/profiles/{profile_id}/clipboard")
 async def get_clipboard(profile_id: str):
-    """Read the VNC session's clipboard.
+    """Admin ops clipboard read (AuthMiddleware). Machine surface uses /profiles + viewer token."""
+    profile = db.get_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    if not profile.get("clipboard_sync"):
+        raise HTTPException(status_code=403, detail="Clipboard sync disabled for this profile")
+    return await _read_clipboard_text(profile_id)
 
-    Chrome doesn't write to X11 clipboard under KasmVNC, so xclip can't read it.
-    Instead, read via Playwright's CDP connection to Chrome (navigator.clipboard.readText).
-    Falls back to xclip for non-Chrome clipboard owners.
-    """
+
+async def _read_clipboard_text(profile_id: str) -> dict[str, str]:
+    """Shared clipboard read implementation for viewer route."""
     running = browser_mgr.running.get(profile_id)
     if not running:
         raise HTTPException(status_code=404, detail="Profile not running")
@@ -760,19 +730,12 @@ async def get_clipboard(profile_id: str):
 # ── VNC WebSocket Proxy ──────────────────────────────────────────────────────
 
 
-@app.websocket("/api/profiles/{profile_id}/vnc")
-async def vnc_proxy(websocket: WebSocket, profile_id: str):
-    """Proxy WebSocket frames between the frontend and a profile's KasmVNC."""
-    if not await _check_websocket_origin(websocket):
-        return
-
-    running = browser_mgr.running.get(profile_id)
-    if not running:
-        await websocket.close(code=4004, reason="Profile not running")
-        return
-
-    # Accept with client's requested subprotocol (if any) — RFC 6455 requires
-    # the server must not respond with a subprotocol the client didn't request.
+async def _run_vnc_proxy(
+    websocket: WebSocket,
+    running: RunningProfile,
+    profile_id: str,
+) -> None:
+    """Shared VNC proxy loop for admin and signed-viewer WebSockets."""
     requested = websocket.scope.get("subprotocols", [])
     subprotocol = "binary" if "binary" in requested else None
     await websocket.accept(subprotocol=subprotocol)
@@ -921,6 +884,37 @@ async def vnc_proxy(websocket: WebSocket, profile_id: str):
             await websocket.close()
         except Exception as exc:
             logger.debug("VNC proxy: websocket.close() failed: %s", exc)
+
+
+@app.websocket("/api/profiles/{profile_id}/vnc")
+async def vnc_proxy(websocket: WebSocket, profile_id: str):
+    """Admin-dashboard VNC proxy (cookie auth via AuthMiddleware)."""
+    if not await _check_websocket_origin(websocket):
+        return
+
+    running = browser_mgr.running.get(profile_id)
+    if not running:
+        await websocket.close(code=4004, reason="Profile not running")
+        return
+
+    sm: SessionManager = websocket.scope["app"].state.session_manager
+    async with browser_mgr._lock:
+        running.viewer_attach_count += 1
+    sm.on_attach(profile_id)
+
+    try:
+        await _run_vnc_proxy(websocket, running, profile_id)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        async with browser_mgr._lock:
+            running.viewer_attach_count = max(0, running.viewer_attach_count - 1)
+            both_zero = (
+                running.cdp_attach_count == 0
+                and running.viewer_attach_count == 0
+            )
+        if both_zero:
+            sm.on_all_detached(profile_id)
 
 
 # ── CDP WebSocket Proxy ──────────────────────────────────────────────────────
@@ -1154,7 +1148,7 @@ if FRONTEND_DIR.exists():
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         """Serve React SPA — all non-API routes return index.html."""
-        if full_path.startswith("api/"):
+        if full_path.startswith("api/") or full_path.startswith("viewer/"):
             raise HTTPException(status_code=404, detail="Not found")
         file_path = FRONTEND_DIR / full_path
         if full_path and file_path.exists() and file_path.is_file():
