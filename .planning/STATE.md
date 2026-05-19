@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_plan: 0
-status: ready_to_plan
+status: ready_to_execute
 last_updated: "2026-05-19T12:00:00Z"
 progress:
   total_phases: 4
@@ -34,9 +34,9 @@ progress:
 
 ## Current Position
 
-Phase: 03 (signed-viewer-urls-and-security-hardening) — Ready to plan
-Plan: 0 of TBD
-**Status:** Phase 2 complete; ready for Phase 3 planning
+Phase: 03 (signed-viewer-urls-and-security-hardening) — Ready to execute
+Plan: 0 of 4
+**Status:** Phase 3 planned (4 plans, 4 waves); ready for `/gsd-execute-phase 3`
 
 **Progress:**
 
@@ -112,7 +112,7 @@ Plan: 0 of TBD
 
 ### Todos
 
-- [ ] Start Phase 3 planning: `/gsd-plan-phase 3`
+- [ ] Execute Phase 3: `/gsd-execute-phase 3`
 
 ### Blockers
 

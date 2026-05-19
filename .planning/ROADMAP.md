@@ -102,9 +102,20 @@ Plans:
   4. All viewer endpoint responses carry `Content-Security-Policy: frame-ancestors <MAIN_APP_ORIGIN>`; all `/admin/*` API responses carry `frame-ancestors 'none'`; the admin `auth_token` cookie is set `SameSite=Strict; HttpOnly`.
   5. `GET /profiles/{id}/clipboard` returns 403 when authenticated only by the Main App API key; it succeeds only when the request carries a valid viewer-scoped signed token.
 
-**Plans**: TBD
+**Plans:** 4 plans in 4 waves
 
-**UI hint**: yes
+Plans:
+- [ ] 03-01-PLAN.md — viewer_tokens module (PyJWT mint/validate/JTI registry) [Wave 1]
+- [ ] 03-02-PLAN.md — CSP hardening, clipboard viewer-scoping, SEC-03 verify [Wave 2]
+- [ ] 03-03-PLAN.md — VNC core extract, viewer HTML/WS routes, WS tests [Wave 3]
+- [ ] 03-04-PLAN.md — Wire vnc_viewer_url on POST /sessions + E2E checkpoint [Wave 4]
+
+**Cross-cutting constraints:**
+- Viewer tokens travel in URL fragment only (`#token=`), never in iframe `src` querystring
+- JTI single-use consumed before VNC proxy starts
+- Admin auth (`/api/*`) and machine auth (`/sessions`, `/profiles`) remain strictly segregated
+
+**UI hint**: yes (`03-UI-SPEC.md` — embed viewer page)
 
 **Parallelization notes**:
 - `viewer_tokens.py` (pure module started optionally in Phase 1) is finalized and wired in here; if not started earlier, it is written at Phase 3 start.
