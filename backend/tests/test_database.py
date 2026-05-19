@@ -236,3 +236,167 @@ def test_delete_profile_cascades_tags(tmp_db: Path):
             "SELECT * FROM profile_tags WHERE profile_id = ?", (p["id"],)
         ).fetchall()
     assert len(rows) == 0
+
+
+# ── Phase 2: upsert_profile_by_vendor / list_profiles_filtered ─────────────
+
+
+import json as _json
+import sqlite3 as _sqlite3
+from unittest.mock import patch as _patch
+
+from backend.database import (
+    NoTemplateError,
+    create_template,
+    list_profiles_filtered,
+    update_template,
+    upsert_profile_by_vendor,
+)
+
+
+def _seed_template(vendor_type: str = "acme", **blueprint_overrides) -> dict:
+    blueprint = {
+        "timezone": "America/New_York",
+        "locale": "en-US",
+        "platform": "windows",
+        "screen_width": 1920,
+        "screen_height": 1080,
+        "humanize": False,
+        "human_preset": "default",
+        "launch_args": [],
+        "clipboard_sync": False,
+    }
+    blueprint.update(blueprint_overrides)
+    return create_template(
+        vendor_type=vendor_type,
+        label=f"{vendor_type} template",
+        notes=None,
+        blueprint_json=_json.dumps(blueprint),
+    )
+
+
+def test_upsert_creates_new_profile_when_template_exists(tmp_db: Path):
+    template = _seed_template("acme", timezone="UTC")
+    profile = upsert_profile_by_vendor("acme", "user-1")
+    assert profile["vendor_type"] == "acme"
+    assert profile["vendor_connection_id"] == "user-1"
+    assert profile["template_id"] == template["id"]
+    assert profile["timezone"] == "UTC"
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT id FROM profiles WHERE vendor_type=? AND vendor_connection_id=?",
+            ("acme", "user-1"),
+        ).fetchall()
+    assert len(rows) == 1
+
+
+def test_upsert_returns_existing_profile_unchanged(tmp_db: Path):
+    template = _seed_template("acme", timezone="UTC")
+    first = upsert_profile_by_vendor("acme", "user-1")
+    update_template(
+        template["id"],
+        blueprint_json=_json.dumps(
+            {
+                "timezone": "Europe/London",
+                "locale": "en-GB",
+                "platform": "windows",
+                "screen_width": 1920,
+                "screen_height": 1080,
+                "humanize": False,
+                "human_preset": "default",
+                "launch_args": [],
+                "clipboard_sync": False,
+            }
+        ),
+    )
+    second = upsert_profile_by_vendor("acme", "user-1")
+    assert second["id"] == first["id"]
+    assert second["timezone"] == "UTC"
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT id FROM profiles WHERE vendor_type=? AND vendor_connection_id=?",
+            ("acme", "user-1"),
+        ).fetchall()
+    assert len(rows) == 1
+
+
+def test_upsert_raises_no_template_error_when_no_template(tmp_db: Path):
+    with pytest.raises(NoTemplateError) as exc_info:
+        upsert_profile_by_vendor("nonexistent", "user-1")
+    assert exc_info.value.vendor_type == "nonexistent"
+    assert "nonexistent" in str(exc_info.value)
+
+
+def test_upsert_handles_integrity_error_via_reselect(tmp_db: Path):
+    _seed_template("acme")
+    pre_existing = upsert_profile_by_vendor("acme", "user-1")
+    with db.get_db() as conn:
+        conn.execute("DELETE FROM profiles WHERE id = ?", (pre_existing["id"],))
+        conn.commit()
+
+    inserted_id = {"id": None}
+
+    def _race_insert(template, vendor_connection_id, name=None):
+        with db.get_db() as conn:
+            new_id = "race-winner-id"
+            inserted_id["id"] = new_id
+            conn.execute(
+                "INSERT INTO profiles (id, name, fingerprint_seed, vendor_type, "
+                "vendor_connection_id, template_id, user_data_dir, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+                (
+                    new_id,
+                    "racer",
+                    99999,
+                    template["vendor_type"],
+                    vendor_connection_id,
+                    template["id"],
+                    "/tmp/racer",
+                ),
+            )
+            conn.commit()
+        raise _sqlite3.IntegrityError("UNIQUE constraint failed: idx_profiles_vendor_pair")
+
+    with _patch("backend.database.create_profile_from_template", side_effect=_race_insert):
+        result = upsert_profile_by_vendor("acme", "user-1")
+
+    assert result["id"] == inserted_id["id"]
+    assert result["vendor_type"] == "acme"
+
+
+def test_list_profiles_filtered_returns_empty_for_no_match(tmp_db: Path):
+    _seed_template("acme")
+    upsert_profile_by_vendor("acme", "user-1")
+    out = list_profiles_filtered(vendor_type="other")
+    assert out == []
+
+
+def test_list_profiles_filtered_returns_match_for_pair(tmp_db: Path):
+    _seed_template("acme")
+    profile = upsert_profile_by_vendor("acme", "user-1")
+    out = list_profiles_filtered(vendor_type="acme", vendor_connection_id="user-1")
+    assert len(out) == 1
+    assert out[0]["id"] == profile["id"]
+
+
+def test_list_profiles_filtered_returns_all_for_no_filter(tmp_db: Path):
+    _seed_template("acme")
+    _seed_template("globex")
+    upsert_profile_by_vendor("acme", "user-1")
+    upsert_profile_by_vendor("globex", "user-2")
+    out = list_profiles_filtered()
+    assert len(out) == 2
+
+
+def test_unique_constraint_enforced_at_db_layer(tmp_db: Path):
+    _seed_template("acme")
+    upsert_profile_by_vendor("acme", "user-1")
+    with db.get_db() as conn:
+        with pytest.raises(_sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO profiles (id, name, fingerprint_seed, vendor_type, "
+                "vendor_connection_id, user_data_dir, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+                ("dup-id", "dup", 11111, "acme", "user-1", "/tmp/dup"),
+            )
+            conn.commit()

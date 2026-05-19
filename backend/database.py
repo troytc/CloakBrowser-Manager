@@ -449,3 +449,102 @@ def create_profile_from_template(
     result = get_profile(profile_id)
     assert result is not None
     return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 (CONTEXT.md D-15, SESS-01): idempotent upsert by vendor pair
+# ---------------------------------------------------------------------------
+
+
+class NoTemplateError(Exception):
+    """Raised by upsert_profile_by_vendor when no vendor_template exists."""
+
+    def __init__(self, vendor_type: str) -> None:
+        self.vendor_type = vendor_type
+        super().__init__(f"No template configured for vendor_type={vendor_type!r}")
+
+
+def upsert_profile_by_vendor(
+    vendor_type: str,
+    vendor_connection_id: str,
+) -> dict[str, Any]:
+    """Idempotently get-or-create a profile for the (vendor_type, vendor_connection_id) pair."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM profiles WHERE vendor_type=? AND vendor_connection_id=?",
+            (vendor_type, vendor_connection_id),
+        ).fetchone()
+        if row:
+            profile = dict(row)
+            profile["launch_args"] = json.loads(profile.get("launch_args") or "[]")
+            tags = conn.execute(
+                "SELECT tag, color FROM profile_tags WHERE profile_id = ?",
+                (profile["id"],),
+            ).fetchall()
+            profile["tags"] = [dict(t) for t in tags]
+            return profile
+
+        template_row = conn.execute(
+            "SELECT id, vendor_type, label, notes, blueprint, created_at, updated_at "
+            "FROM vendor_templates WHERE vendor_type = ?",
+            (vendor_type,),
+        ).fetchone()
+        if not template_row:
+            raise NoTemplateError(vendor_type)
+        template = dict(template_row)
+
+    try:
+        return create_profile_from_template(
+            template=template,
+            vendor_connection_id=vendor_connection_id,
+            name=None,
+        )
+    except sqlite3.IntegrityError:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT * FROM profiles WHERE vendor_type=? AND vendor_connection_id=?",
+                (vendor_type, vendor_connection_id),
+            ).fetchone()
+            if row is None:
+                raise
+            profile = dict(row)
+            profile["launch_args"] = json.loads(profile.get("launch_args") or "[]")
+            tags = conn.execute(
+                "SELECT tag, color FROM profile_tags WHERE profile_id = ?",
+                (profile["id"],),
+            ).fetchall()
+            profile["tags"] = [dict(t) for t in tags]
+            return profile
+
+
+def list_profiles_filtered(
+    vendor_type: str | None = None,
+    vendor_connection_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """List profiles with optional vendor pair filtering (D-20: [] on no match)."""
+    sql = "SELECT * FROM profiles"
+    where: list[str] = []
+    params: list[Any] = []
+    if vendor_type is not None:
+        where.append("vendor_type = ?")
+        params.append(vendor_type)
+    if vendor_connection_id is not None:
+        where.append("vendor_connection_id = ?")
+        params.append(vendor_connection_id)
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC"
+
+    with get_db() as conn:
+        rows = conn.execute(sql, tuple(params)).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            p = dict(row)
+            p["launch_args"] = json.loads(p.get("launch_args") or "[]")
+            tags = conn.execute(
+                "SELECT tag, color FROM profile_tags WHERE profile_id = ?",
+                (p["id"],),
+            ).fetchall()
+            p["tags"] = [dict(t) for t in tags]
+            result.append(p)
+        return result
