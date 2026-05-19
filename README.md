@@ -11,7 +11,7 @@ Warm-pooled Chromium, vendor templates, CDP automation, and signed iframe viewer
 
 <p align="center">
 <a href="https://github.com/CloakHQ/CloakBrowser"><img src="https://img.shields.io/github/stars/cloakhq/cloakbrowser?label=CloakBrowser" alt="Stars"></a>
-<a href="https://hub.docker.com/r/nowkickback/vendorbrowser"><img src="https://img.shields.io/docker/pulls/nowkickback/vendorbrowser?label=docker&logo=docker&logoColor=white" alt="Docker Pulls"></a>
+<a href="https://hub.docker.com/r/kickback/vendorbrowser"><img src="https://img.shields.io/docker/pulls/kickback/vendorbrowser?label=docker&logo=docker&logoColor=white" alt="Docker Pulls"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
 </p>
 
@@ -51,7 +51,7 @@ docker compose up --build
 Production image:
 
 ```bash
-docker pull nowkickback/vendorbrowser:latest
+docker pull kickback/vendorbrowser:latest
 
 docker run -d --name vendorbrowser \
   -p 8080:8080 \
@@ -60,7 +60,7 @@ docker run -d --name vendorbrowser \
   -e VIEWER_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
   -e MAIN_APP_ORIGIN=https://your-main-app.example.com \
   -e AUTH_TOKEN=your-admin-token \
-  nowkickback/vendorbrowser:latest
+  kickback/vendorbrowser:latest
 ```
 
 The service **refuses to start** without `MAIN_APP_API_KEY` and `VIEWER_SECRET` unless `DEV_MODE=1` (local dev only).
@@ -268,17 +268,31 @@ GitHub Actions builds multi-arch (`linux/amd64`, `linux/arm64`) images and pushe
 
 | Event | Image tags |
 |-------|------------|
-| Push to `main` | `nowkickback/vendorbrowser:latest`, `nowkickback/vendorbrowser:sha-<short>` |
-| Tag `v1.0.0` | `nowkickback/vendorbrowser:1.0.0`, `1.0`, `1`, `latest` |
+| Push to `main` | `kickback/vendorbrowser:latest`, `kickback/vendorbrowser:sha-<short>` |
+| Tag `v1.0.0` | `kickback/vendorbrowser:1.0.0`, `1.0`, `1`, `latest` |
 
-**Repo secrets required** (Settings → Secrets → Actions):
+**Repo secrets required** on your fork (Settings → Secrets → Actions):
 
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN` (Docker Hub access token with push access)
+- `DOCKERHUB_USERNAME` — Docker Hub user or org with access to push `kickback/vendorbrowser`
+- `DOCKERHUB_TOKEN` — access token with **Read & Write** to that namespace
 
 Pull requests run **build only** (no push).
 
 Workflow: [`.github/workflows/docker.yml`](.github/workflows/docker.yml)
+
+### Git remotes (fork workflow)
+
+This repo is developed on the **Kickback fork**; CloakHQ remains upstream:
+
+```bash
+git remote set-url origin https://github.com/troytc/CloakBrowser-Manager.git
+git remote add upstream https://github.com/CloakHQ/CloakBrowser-Manager.git  # if missing
+
+git push -u origin main
+git push origin v1.0   # tags
+```
+
+To sync from CloakHQ later: `git fetch upstream && git merge upstream/main`
 
 ---
 
@@ -288,7 +302,7 @@ Workflow: [`.github/workflows/docker.yml`](.github/workflows/docker.yml)
 |----------|----------|
 | **RAM** | ~512 MB per running profile (order of magnitude) |
 | **Disk** | `/data` volume — profiles + SQLite; back up the volume |
-| **Updates** | `docker pull nowkickback/vendorbrowser:latest` and recreate container; data persists on the volume |
+| **Updates** | `docker pull kickback/vendorbrowser:latest` and recreate container; data persists on the volume |
 | **Remote access** | Bind behind VPN or `ssh -L 8080:localhost:8080 host`; use HTTPS in production |
 | **Templates** | Create each `vendor_type` in admin **before** Main App users connect |
 
@@ -324,5 +338,6 @@ Internal GSD planning artifacts live in [`.planning/`](.planning/) (roadmap, v1.
 
 - **Main App integration** — [docs/MAIN_APP_INTEGRATION.md](docs/MAIN_APP_INTEGRATION.md)
 - **CloakBrowser** — [github.com/CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser)
-- **Docker Hub** — [hub.docker.com/r/nowkickback/vendorbrowser](https://hub.docker.com/r/nowkickback/vendorbrowser)
-- **Issues** — [github.com/CloakHQ/CloakBrowser-Manager/issues](https://github.com/CloakHQ/CloakBrowser-Manager/issues)
+- **Docker Hub** — [hub.docker.com/r/kickback/vendorbrowser](https://hub.docker.com/r/kickback/vendorbrowser)
+- **Issues** — [github.com/troytc/CloakBrowser-Manager/issues](https://github.com/troytc/CloakBrowser-Manager/issues)
+- **Upstream** — [github.com/CloakHQ/CloakBrowser-Manager](https://github.com/CloakHQ/CloakBrowser-Manager)
