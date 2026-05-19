@@ -41,8 +41,29 @@ async def test_post_sessions_happy_path_returns_session_response(async_client, a
     body = r.json()
     assert "profile_id" in body
     assert body["cdp_url"] == f"/api/profiles/{body['profile_id']}/cdp"
-    assert body["vnc_viewer_url"] == ""
+    assert body["vnc_viewer_url"].startswith(f"/viewer/{body['profile_id']}#token=")
     assert body["state"] == "running"
+
+
+@pytest.mark.asyncio
+async def test_post_session_returns_fresh_token_on_repeat(async_client, auth_headers, mock_browser_manager):
+    _seed_template("acme")
+    r1 = await async_client.post(
+        "/sessions",
+        json={"vendor_type": "acme", "vendor_connection_id": "u1"},
+        headers=auth_headers,
+    )
+    r2 = await async_client.post(
+        "/sessions",
+        json={"vendor_type": "acme", "vendor_connection_id": "u1"},
+        headers=auth_headers,
+    )
+    assert r1.status_code == 200 and r2.status_code == 200
+    url1 = r1.json()["vnc_viewer_url"]
+    url2 = r2.json()["vnc_viewer_url"]
+    token1 = url1.split("#token=", 1)[1]
+    token2 = url2.split("#token=", 1)[1]
+    assert token1 != token2
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from . import database as db
 from .browser_manager import BrowserLaunchError, BrowserManager
+from .viewer_tokens import mint_viewer_url
 
 if TYPE_CHECKING:
     from .browser_manager import RunningProfile
@@ -151,7 +152,7 @@ class SessionManager:
                 profile_id=profile_id,
                 cdp_url=f"/api/profiles/{profile_id}/cdp",  # D-13
                 state="running",
-                vnc_viewer_url="",  # Phase 3 wires
+                vnc_viewer_url=mint_viewer_url(profile_id),
             )
 
     def on_attach(self, profile_id: str) -> None:

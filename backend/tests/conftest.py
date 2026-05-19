@@ -114,6 +114,21 @@ def mock_browser_manager(monkeypatch):
 
 
 @pytest.fixture()
+def client_auth(tmp_db, monkeypatch):
+    """TestClient with AUTH_TOKEN enabled (admin routes)."""
+    from backend import main
+    from starlette.testclient import TestClient
+
+    monkeypatch.setattr(main, "AUTH_TOKEN", "test-secret")
+    monkeypatch.setattr(main.browser_mgr, "cleanup_stale", AsyncMock())
+    monkeypatch.setattr(main.browser_mgr, "cleanup_all", AsyncMock())
+    monkeypatch.setattr(main.browser_mgr.vnc, "cleanup_stale", AsyncMock())
+
+    with TestClient(main.app) as client:
+        yield client
+
+
+@pytest.fixture()
 def auth_headers(monkeypatch):
     """Set MAIN_APP_API_KEY and return a header dict for authenticated requests."""
     monkeypatch.setenv("MAIN_APP_API_KEY", "test-key-12345")
