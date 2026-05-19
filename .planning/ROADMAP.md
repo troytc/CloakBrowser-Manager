@@ -138,7 +138,13 @@ Plans:
   3. The old end-user profile-creation UI (direct field entry, Launch button) is absent from the dashboard; there is no UI path to create a profile other than via template-driven `POST /sessions`.
   4. `POST /api/profiles/{id}/launch` and `POST /api/profiles/{id}/stop` return 404 or 410; the old `/api/profiles/*` CRUD surface (direct field creation) is replaced by the new machine API surface.
 
-**Plans**: TBD
+**Plans:** 4 plans in 4 waves
+
+Plans:
+- [ ] 04-01-PLAN.md — Admin GET /api/admin/sessions (all profiles + warm-pool envelope) [Wave 1]
+- [ ] 04-02-PLAN.md — api.ts + useSessions + SessionList.tsx [Wave 2]
+- [ ] 04-03-PLAN.md — App.tsx pivot (Sessions/Templates, admin VNC, checkpoint) [Wave 3]
+- [ ] 04-04-PLAN.md — Remove launch/stop/legacy admin CRUD + test cleanup [Wave 4]
 
 **UI hint**: yes
 
@@ -156,7 +162,7 @@ Plans:
 | 1. Schema, Templates, and Security Foundations | 8/8 | Complete    | 2026-05-19 |
 | 2. Sessions, Warm-Pool, and CDP Lifecycle | 0/9 | Not started | - |
 | 3. Signed Viewer URLs and Security Hardening | 0/? | Not started | - |
-| 4. Admin Dashboard Pivot and API Surface Cleanup | 0/? | Not started | - |
+| 4. Admin Dashboard Pivot and API Surface Cleanup | 0/4 | Planned | - |
 
 ---
 
