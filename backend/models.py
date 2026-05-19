@@ -239,6 +239,22 @@ class SessionStatusResponse(BaseModel):
     last_launched_at: str | None = None
 
 
+class AdminSessionListItem(BaseModel):
+    """GET /api/admin/sessions row (ADM-02)."""
+    model_config = ConfigDict(extra="forbid")
+    profile_id: str
+    name: str
+    vendor_type: str
+    vendor_connection_id: str
+    state: Literal["running", "idle", "stopped"]
+    cdp_attach_count: int = 0
+    viewer_attach_count: int = 0
+    idle_expires_at: str | None = None
+    last_launched_at: str | None = None
+    uptime_seconds: int | None = None
+    clipboard_sync: bool = False
+
+
 class SessionListItem(BaseModel):
     """One entry in GET /sessions response (D-14)."""
     model_config = ConfigDict(extra="forbid")
