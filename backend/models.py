@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 class ProfileCreate(BaseModel):
@@ -200,3 +200,89 @@ class TemplateDeleteBlockedResponse(BaseModel):
     """409 response body shape when template is in use (D-06, D-13)."""
     detail: str
     blocking_profile_ids: list[str]
+
+
+# Phase 2 machine-API models (CONTEXT.md D-10 / D-16 / D-18 / D-20)
+
+NonEmptyStr = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+
+
+class SessionRequest(BaseModel):
+    """POST /sessions request body (SESS-01, SESS-02)."""
+    model_config = ConfigDict(extra="forbid")
+    vendor_type: NonEmptyStr
+    vendor_connection_id: NonEmptyStr
+
+
+class SessionResponse(BaseModel):
+    """POST /sessions response body (SESS-02).
+
+    Phase 2: vnc_viewer_url is the empty string (Phase 3 wires the signed URL).
+    """
+    model_config = ConfigDict(extra="forbid")
+    profile_id: str
+    cdp_url: str  # /api/profiles/{id}/cdp (D-13)
+    vnc_viewer_url: str = ""  # Phase 3 wires
+    state: Literal["running", "idle", "stopped"]
+
+
+class SessionStatusResponse(BaseModel):
+    """GET /sessions/{profile_id} response body (SESS-13, D-18).
+
+    Mirrors SessionStatusEnvelope from session_manager.py.
+    """
+    model_config = ConfigDict(extra="forbid")
+    state: Literal["running", "idle", "stopped"]
+    cdp_attach_count: int = 0
+    viewer_attach_count: int = 0
+    idle_expires_at: str | None = None
+    last_launched_at: str | None = None
+
+
+class SessionListItem(BaseModel):
+    """One entry in GET /sessions response (D-14)."""
+    model_config = ConfigDict(extra="forbid")
+    profile_id: str
+    vendor_type: str
+    vendor_connection_id: str
+    state: Literal["running", "idle", "stopped"]
+    cdp_attach_count: int = 0
+    viewer_attach_count: int = 0
+    idle_expires_at: str | None = None
+    last_launched_at: str | None = None
+
+
+class ProfilePatch(BaseModel):
+    """PATCH /profiles/{id} request body (PROF-03).
+
+    Phase 2 v1 surface: notes only. Identity keys (vendor_type,
+    vendor_connection_id, template_id) are NOT patchable. clipboard_sync is
+    NOT patchable from the Main App per CLAUDE.md security rule 2.
+    """
+    model_config = ConfigDict(extra="forbid")
+    notes: str | None = Field(default=None)
+
+
+class MachineProfileResponse(BaseModel):
+    """GET /profiles, GET /profiles/{id} response body (PROF-01, PROF-02)."""
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    name: str
+    vendor_type: str
+    vendor_connection_id: str
+    template_id: str | None = None
+    notes: str | None = None
+    user_data_dir: str
+    created_at: str
+    updated_at: str
+    timezone: str | None = None
+    locale: str | None = None
+    platform: str = "windows"
+    screen_width: int = 1920
+    screen_height: int = 1080
+    clipboard_sync: bool = False
+
+    @field_validator("clipboard_sync", mode="before")
+    @classmethod
+    def coerce_clipboard_sync(cls, v: object) -> bool:
+        return bool(v) if v is not None else False
