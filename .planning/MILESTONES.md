@@ -15,8 +15,15 @@
 - Admin VNC integrated with warm-pool (`viewer_attach_count`, idle timer, admin clipboard, idle-session viewer).
 - Merged upstream fixes: VNC wheel containment, CDP port rotation, profile auto-launch on container start.
 
-**Tech debt (accepted at close):** VIEW-09 human iframe smoke on Main App origin; SESS-12 slow e2e deselected in default CI; ADM-03 admin VNC not manually QA'd. See [milestones/v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md).
+**Tech debt (accepted at close — all cleared 2026-09-03):** VIEW-09 human iframe smoke on Main App origin; SESS-12 slow e2e deselected in default CI; ADM-03 admin VNC not manually QA'd. See [milestones/v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md).
 
-Known deferred items at close: 1 (see STATE.md Deferred Items)
+**Post-ship verification (2026-09-03):** all 10 outstanding human-verification items closed —
+Phase 01 UAT now 7/7 (delete-blocked modal / BL-02 and the OPS-04 container UID-mismatch
+recreate both confirmed live), Phase 02 slow E2E on real Chromium plus Main App integration
+smoke, Phase 03 VIEW-09 iframe embed on the real Main App origin, and Phase 04/05 ADM-03
+admin VNC + clipboard. OPS-04 and SEC-05 move from static to live verification. No open
+verification debt remains.
+
+Known deferred items at close: 1 — ✓ resolved 2026-09-03 (see STATE.md Deferred Items)
 
 ---

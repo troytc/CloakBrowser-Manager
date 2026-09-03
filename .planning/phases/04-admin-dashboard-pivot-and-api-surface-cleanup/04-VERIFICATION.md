@@ -21,4 +21,10 @@
 ## Notes
 
 - SPA catch-all excludes `viewer/*` GET paths so mistaken `/viewer/{id}/ws` HTTP requests return 404 instead of index.html.
-- Human smoke of admin VNC deferred (YOLO); automated admin sessions + 410 regression tests cover the contract.
+- Legacy admin surface returns 410 for `GET/POST /api/profiles`, `GET/PUT /api/profiles/{id}`, and `POST .../launch`/`.../stop`. `DELETE /api/profiles/{id}` (`main.py:571`) remains live and destructive — it stops the browser, deletes the row, and `rmtree`s the profile dir.
+
+## Human Verification — COMPLETE (2026-09-03)
+
+✓ **Admin VNC smoke (ADM-03)** — confirmed by operator 2026-09-03, closing the deferral
+accepted at v1.0 close. Admin dashboard opened the VNC viewer for both `idle` and `running`
+sessions; automated admin-sessions and 410 regression tests already covered the contract.

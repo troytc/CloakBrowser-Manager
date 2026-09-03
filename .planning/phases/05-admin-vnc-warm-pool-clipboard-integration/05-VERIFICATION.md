@@ -17,6 +17,10 @@
 - Backend: 275 passed (2 slow deselected)
 - `test_admin_vnc_ws_tracks_viewer_attach_count`, `test_get_clipboard_admin_route_success`
 
-## Note
+## Human Verification — COMPLETE (2026-09-03)
 
-Human admin VNC smoke still recommended; automated tests mock VNC proxy loop.
+✓ **Admin VNC + clipboard smoke** — confirmed by operator 2026-09-03. Live run against a real
+VNC proxy loop (automated tests mock it): viewer attach incremented `viewer_attach_count` and
+suppressed the idle timer (`main.py:905`/`:914`), admin clipboard read returned selected text
+(`main.py:675`), and the machine `/profiles/{id}/clipboard` route still refused without a
+viewer token. Same ADM-03 item tracked in Phase 4; closed once for both.

@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: Warm-pool / Templates / Signed-Viewer
 status: Awaiting next milestone
 stopped_at: Milestone v1.0 complete
-last_updated: "2026-05-19"
-last_activity: 2026-05-19 — Milestone v1.0 completed and archived
+last_updated: "2026-09-03"
+last_activity: 2026-09-03 — All outstanding v1.0 human verification closed (10 items pass)
 progress:
   total_phases: 5
   completed_phases: 5
@@ -18,7 +18,7 @@ progress:
 
 **Milestone:** v1.0 shipped (2026-05-19)
 **Initialized:** 2026-04-22
-**Last updated:** 2026-05-19
+**Last updated:** 2026-09-03
 
 ---
 
@@ -44,19 +44,25 @@ progress:
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-05-19:
+Items acknowledged and deferred at milestone close on 2026-05-19 — **all closed 2026-09-03.**
 
 | Category | Item | Status |
 |----------|------|--------|
-| uat | Phase 01 UAT partial (01-UAT.md) | open |
+| uat | Phase 01 UAT partial (01-UAT.md) | ✓ resolved 2026-09-03 — 7/7 pass |
+| uat | VIEW-09 viewer iframe smoke (Phase 03) | ✓ resolved 2026-09-03 |
+| uat | SESS-12 slow E2E with real Chromium (Phase 02) | ✓ resolved 2026-09-03 |
+| uat | Main App integration smoke (Phase 02) | ✓ resolved 2026-09-03 |
+| uat | ADM-03 admin VNC smoke (Phases 04/05) | ✓ resolved 2026-09-03 |
+
+No open verification debt. `gsd-sdk query audit-uat` reports zero outstanding items.
 
 ---
 
 ## Operator Next Steps
 
-1. Push to `origin` (requires write access to `CloakHQ/CloakBrowser-Manager`)
+1. ✓ Pushed to `origin` — `main` in sync with `origin/main`
 2. `/gsd-new-milestone` — define v1.1+ scope, requirements, and roadmap
 
 ---
 
-*State updated: 2026-05-19 after v1.0 archive*
+*State updated: 2026-09-03 after closing all v1.0 verification debt*

@@ -12,6 +12,9 @@ re_verification:
     - "BL-02: App.tsx::handleDeleteTemplateFromForm stale-closure read of deleteBlocked replaced with discriminated-union return from remove() (commit 796375b)"
   gaps_remaining: []
   regressions: []
+human_verification_status: complete
+human_verification_completed: 2026-09-03
+human_verification_note: "All 6 items confirmed by operator 2026-09-03. Recorded in 01-UAT.md (7/7 pass). Item 3's setup step referenced the Phase-4-retired admin POST /api/profiles surface (now 410); corrected to machine POST /sessions."
 human_verification:
   - test: "Open the admin dashboard at /, log in if AUTH_TOKEN is set, click the Templates pill in the top bar, click 'New Template', fill in vendor_type='shopify' + label='Shopify' + leave other fields default, click Create. Confirm the new template appears in the list."
     expected: "Form unmounts back to the empty/list view; new row appears in the table with vendor_type=shopify and label=Shopify; no error banner."
@@ -185,21 +188,27 @@ Both blockers from the initial gaps_found verification are now closed.
 
 No blockers remain. All former blockers (BL-01, BL-02) are resolved.
 
-### Human Verification Required
+### Human Verification — COMPLETE (2026-09-03)
 
-All automated checks pass. Six items need live environment confirmation:
+All automated checks pass. All six live-environment items were confirmed by the operator
+on 2026-09-03, closing the last outstanding verification debt from v1.0:
 
-1. **Templates UI smoke flow (TMPL-01)** — open dashboard, click Templates pill, create + edit + delete a template; confirm visual flow and form unmount behavior.
+1. ✓ **Templates UI smoke flow (TMPL-01)** — dashboard → Templates pill → create + edit + delete; visual flow and form unmount behavior confirmed.
 
-2. **Edit-then-update flow (TMPL-03)** — change Label on existing template, save; row updates within 3s polling.
+2. ✓ **Edit-then-update flow (TMPL-03)** — Label change on existing template saved; row updated within 3s polling.
 
-3. **Delete-blocked modal with BL-02 fix (TMPL-04)** — trigger 409 from the Edit-Template form's own Delete button. **Confirm the Edit form stays mounted behind the modal** (this is the BL-02 fix; Vitest tests pin the logic but live browser confirms the DOM behavior). Copy IDs, Escape dismiss.
+3. ✓ **Delete-blocked modal with BL-02 fix (TMPL-04)** — 409 triggered from the Edit-Template form's own Delete button; **Edit form confirmed to stay mounted behind the modal**. Copy IDs and Escape dismiss both confirmed. Live guard: `App.tsx:158` `if (!result.blocked)`.
 
-4. **Delete success (TMPL-04)** — clear blocking profile, retry delete; row disappears.
+4. ✓ **Delete success (TMPL-04)** — blocking profile cleared, delete retried; row disappeared.
 
-5. **Container UID-mismatch test (OPS-04)** — recreate container with mismatched volume UID, confirm cookies flush without permission errors.
+5. ✓ **Container UID-mismatch test (OPS-04)** — container recreated with mismatched volume UID; cookies flushed without permission errors. Promotes success criterion 5 from VERIFIED (static) to VERIFIED (live).
 
-6. **Container-level fail-closed (SEC-05)** — boot service with both secrets missing, no DEV_MODE; container exits with the descriptive RuntimeError, port 8080 unbound.
+6. ✓ **Container-level fail-closed (SEC-05)** — booted with both secrets missing and no DEV_MODE; container exited with the descriptive RuntimeError and port 8080 stayed unbound.
+
+**Setup correction applied:** item 3's original instructions created the blocking profile via
+the "Phase 2 surface" admin API. Phase 4 retired that route (`POST /api/profiles` → 410), so
+the step now uses machine `POST /sessions` with `X-API-Key`. Note `DELETE /api/profiles/{id}`
+(`main.py:571`) is still live and destructive — only GET/POST/PUT and launch/stop return 410.
 
 ### Gaps Summary
 
