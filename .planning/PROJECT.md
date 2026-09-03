@@ -73,7 +73,7 @@ _(Empty — run `/gsd-new-milestone` to add v1.1+ requirements.)_
 
 **Shipped v1.0** on 2026-05-19 after brownfield refocus from v0.0.7 browser-farm dashboard. Planning archives: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md), [milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md).
 
-**Codebase intelligence:** `.planning/codebase/` snapshot + phase verification docs under `.planning/phases/`.
+**Codebase intelligence:** `.planning/codebase/` snapshot + v1.0 phase verification docs archived under [milestones/v1.0-phases/](milestones/v1.0-phases/) (`.planning/phases/` holds the active milestone only).
 
 **Integration:** Main App is a separate codebase; consumes HTTP + WebSocket APIs documented in README.
 
