@@ -15,15 +15,18 @@
 - Admin VNC integrated with warm-pool (`viewer_attach_count`, idle timer, admin clipboard, idle-session viewer).
 - Merged upstream fixes: VNC wheel containment, CDP port rotation, profile auto-launch on container start.
 
-**Tech debt (accepted at close — all cleared 2026-09-03):** VIEW-09 human iframe smoke on Main App origin; SESS-12 slow e2e deselected in default CI; ADM-03 admin VNC not manually QA'd. See [milestones/v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md).
+**Tech debt (accepted at close):** VIEW-09 human iframe smoke on Main App origin (**still open**); SESS-12 slow e2e deselected in default CI (**still open**); ADM-03 admin VNC not manually QA'd (**✓ cleared 2026-09-03**). See [milestones/v1.0-MILESTONE-AUDIT.md](milestones/v1.0-MILESTONE-AUDIT.md).
 
-**Post-ship verification (2026-09-03):** all 10 outstanding human-verification items closed —
-Phase 01 UAT now 7/7 (delete-blocked modal / BL-02 and the OPS-04 container UID-mismatch
-recreate both confirmed live), Phase 02 slow E2E on real Chromium plus Main App integration
-smoke, Phase 03 VIEW-09 iframe embed on the real Main App origin, and Phase 04/05 ADM-03
-admin VNC + clipboard. OPS-04 and SEC-05 move from static to live verification. No open
-verification debt remains.
+**Post-ship verification (2026-09-03):** 7 of the 10 outstanding human-verification items
+closed — all six Phase 01 items (Phase 01 UAT now 7/7, including the delete-blocked modal /
+BL-02 fix and the OPS-04 container UID-mismatch recreate) plus Phase 04/05 ADM-03 admin VNC
+and clipboard. OPS-04 and SEC-05 move from static to live verification.
 
-Known deferred items at close: 1 — ✓ resolved 2026-09-03 (see STATE.md Deferred Items)
+Three items remain open, each gated on a resource outside this repo: SESS-12 slow E2E (needs
+the CloakBrowser binary), Main App integration smoke (needs the consuming application), and
+VIEW-09 viewer iframe smoke (needs the real Main App origin).
+
+Known deferred items at close: 1 — ✓ resolved 2026-09-03; 3 environment-gated items still
+open (see STATE.md Deferred Items)
 
 ---

@@ -190,8 +190,8 @@ No blockers remain. All former blockers (BL-01, BL-02) are resolved.
 
 ### Human Verification — COMPLETE (2026-09-03)
 
-All automated checks pass. All six live-environment items were confirmed by the operator
-on 2026-09-03, closing the last outstanding verification debt from v1.0:
+All automated checks pass. All six live-environment items for this phase were confirmed by
+the operator on 2026-09-03, closing Phase 01's verification debt in full:
 
 1. ✓ **Templates UI smoke flow (TMPL-01)** — dashboard → Templates pill → create + edit + delete; visual flow and form unmount behavior confirmed.
 

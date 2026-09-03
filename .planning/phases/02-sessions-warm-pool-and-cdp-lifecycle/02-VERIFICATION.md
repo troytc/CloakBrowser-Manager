@@ -3,9 +3,6 @@ phase: 02-sessions-warm-pool-and-cdp-lifecycle
 verified: 2026-05-19T00:00:00Z
 status: passed
 score: 5/5 roadmap success criteria verified; 19/19 phase requirements structurally satisfied
-human_verification_status: complete
-human_verification_completed: 2026-09-03
-human_verification_note: "Both items confirmed by operator 2026-09-03. Closes SESS-12 slow-E2E and Main App integration debt accepted at v1.0 close."
 human_verification:
   - test: "Run slow E2E suite with real CloakBrowser binary"
     expected: "pytest -m slow passes test_idle_sleep_then_wake_persists_cookies and test_restart_safety_first_post_after_lifespan_wakes_within_timeout"
@@ -77,13 +74,11 @@ human_verification:
 |------|------|---------|----------|--------|
 | — | — | None in Phase 2 backend modules | — | No TODO/FIXME/placeholder stubs in `session_manager.py`, routers, `auth_api_key.py` |
 
-### Human Verification — COMPLETE (2026-09-03)
+### Human Verification Recommended (Non-Blocking)
 
-Both recommended items were confirmed by the operator on 2026-09-03.
+1. **Slow E2E with real Chromium** — Run `pytest -m slow` on a host with CloakBrowser installed to confirm SESS-12 cookie/dir persistence under real launch/stop (tests skip cleanly when mocked).
 
-1. ✓ **Slow E2E with real Chromium** — `pytest -m slow` run on a host with CloakBrowser installed; SESS-12 cookie/dir persistence confirmed under real launch/stop (`test_warm_pool_e2e.py:41`, `:120`).
-
-2. ✓ **Main App smoke** — `POST /sessions` → CDP WS with `X-API-Key` → disconnect → idle stop → second `POST` from the consuming application, confirmed end-to-end.
+2. **Main App smoke** — Exercise `POST /sessions` → CDP WS with `X-API-Key` → disconnect → wait for idle → second `POST` from the consuming application.
 
 ### Phase 3 Boundary (Not Gaps)
 

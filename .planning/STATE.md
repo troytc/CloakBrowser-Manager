@@ -5,7 +5,7 @@ milestone_name: Warm-pool / Templates / Signed-Viewer
 status: Awaiting next milestone
 stopped_at: Milestone v1.0 complete
 last_updated: "2026-09-03"
-last_activity: 2026-09-03 — All outstanding v1.0 human verification closed (10 items pass)
+last_activity: 2026-09-03 — 7 of 10 v1.0 human-verification items closed (3 external-prereq items remain open)
 progress:
   total_phases: 5
   completed_phases: 5
@@ -44,17 +44,18 @@ progress:
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-05-19 — **all closed 2026-09-03.**
+Items acknowledged and deferred at milestone close on 2026-05-19.
 
 | Category | Item | Status |
 |----------|------|--------|
 | uat | Phase 01 UAT partial (01-UAT.md) | ✓ resolved 2026-09-03 — 7/7 pass |
-| uat | VIEW-09 viewer iframe smoke (Phase 03) | ✓ resolved 2026-09-03 |
-| uat | SESS-12 slow E2E with real Chromium (Phase 02) | ✓ resolved 2026-09-03 |
-| uat | Main App integration smoke (Phase 02) | ✓ resolved 2026-09-03 |
 | uat | ADM-03 admin VNC smoke (Phases 04/05) | ✓ resolved 2026-09-03 |
+| uat | SESS-12 slow E2E with real Chromium (Phase 02) | open — needs CloakBrowser binary |
+| uat | Main App integration smoke (Phase 02) | open — needs consuming Main App |
+| uat | VIEW-09 viewer iframe smoke (Phase 03) | open — needs real Main App origin |
 
-No open verification debt. `gsd-sdk query audit-uat` reports zero outstanding items.
+The three open items are environment-gated, not neglected: each needs a resource
+outside this repo. They were carried as accepted debt at v1.0 close and remain so.
 
 ---
 

@@ -18,10 +18,6 @@
 - `backend`: 273 passed (2 slow e2e deselected)
 - Covers: `test_viewer_tokens.py`, `test_security_hardening.py`, `test_viewer_routes.py`, updated session router tests
 
-## Human Verification — COMPLETE (2026-09-03)
+## Note
 
-✓ **VIEW-09 iframe smoke** — confirmed by operator 2026-09-03. The signed viewer URL was
-embedded in an iframe on the real Main App origin and rendered; CSP `frame-ancestors`
-permitted the embed. Previously deferred at v1.0 close; automated coverage already exercised
-mint, fragment URL, and the viewer page route (`routers/viewer.py`, external `embed.js` at
-`:77-80` keeps `script-src 'self'` intact).
+Human VIEW-09 iframe smoke test deferred (YOLO); automated coverage exercises mint, fragment URL, and viewer page route.
